@@ -1,6 +1,10 @@
 # Braindex and coding agents
 
-Set `BRAINDEX_LIBRARY` to the intended library and put `braindex` on the agent's command path. Add this instruction to your agent's project instructions.
+Put `braindex` on the agent's command path and set `BRAINDEX_LIBRARY` to the library it should consult. The CLI owns topic rules and retrieval. The agent instructions tell the agent when to consult it and how to cite the evidence.
+
+## Add Braindex to AGENTS.md
+
+For Codex, add this snippet to your personal `~/.codex/AGENTS.md` to use Braindex across projects, or add it to a project's `AGENTS.md` to use it there. For other agents, use the equivalent instructions file.
 
 > For a question that may benefit from the user's curated sources, run
 > `braindex context "<question>" --json`. If you recognize a configured topic,
@@ -15,7 +19,30 @@ The user controls which brain IDs each topic selects. Use `braindex rule access 
 
 For inbox review, ask the agent to use `braindex inbox show ID` and `braindex inbox show ID --content` on selected items. For a file, the content command returns the stored file path. The agent can save a proposal with `braindex inbox propose ID` and one JSON object on stdin. Supply `digest` and `rationale`, plus `brains`, `new_brain`, or `leave_out`. This action may send the selected material to the agent's configured model provider. Review and approve the placement yourself.
 
-## Optional adapters
+## Optional Codex prompt hook
+
+To enable automatic prompt retrieval in a compatible Codex host, add a command hook for `UserPromptSubmit` in your Codex hook configuration. Replace both paths, then review and trust the hook in your host.
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/path/to/braindex --library /path/to/Brains hook codex"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The hook checks the current prompt and adds excerpts for matched topics to the model context. An unrelated prompt produces no context. Enable it for a library whose retrieved excerpts you are comfortable sharing with the configured model provider. Keep the instruction snippet to guide citation and help the agent recognize follow-up questions. [Codex hooks](https://developers.openai.com/codex/hooks)
+
+## Optional MCP adapter
 
 Run `braindex --library /path/to/Brains mcp serve` as a local stdio MCP server. It offers one read-only tool, `braindex_context`. For Codex, register it with:
 
@@ -42,26 +69,3 @@ codex mcp add braindex-demo -- "$braindex" --library "$sample/library" mcp serve
 Start a new Codex session and ask, “Use the Braindex MCP tool. What calibration marker does the sample brain say to record? Cite the title and locator returned by the tool.” Look for a completed `braindex_context` call and an answer of **cobalt triangle**, citing **calibration, line 1**. The test uses your configured Codex model provider.
 
 Remove the temporary registration with `codex mcp remove braindex-demo`. The release-readiness check reproduced this tool call and citation in an authenticated Codex CLI session with a temporary configuration.
-
-## Codex prompt hook
-
-To enable automatic prompt retrieval in a compatible Codex host, add a command hook for `UserPromptSubmit` in your Codex hook configuration. Replace both paths, then review and trust the hook in your host.
-
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/path/to/braindex --library /path/to/Brains hook codex"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-The hook emits context for matched topics. An unrelated prompt produces no context. [Codex hooks](https://developers.openai.com/codex/hooks)

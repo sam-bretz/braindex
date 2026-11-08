@@ -1,6 +1,6 @@
-# Braindex
+# ![Braindex — Trusted sources. Cited answers.](docs/assets/braindex-banner.jpg)
 
-Braindex gives coding agents cited passages from the sources you trust. A brain can be one source or a collection. You decide which brains the agent consults for each topic.
+Braindex is a local CLI that gives coding agents cited passages from the sources you trust. A brain can be one source or a collection. You decide which brains the agent consults for each topic.
 
 ## Build and try it
 
@@ -24,17 +24,17 @@ The result should show a matched `founder-led-sales` topic and `hits` from `foun
 
 This walkthrough uses a temporary library. Set `BRAINDEX_LIBRARY` to your preferred directory for ongoing use, or use `braindex --library PATH COMMAND` to select a library per command. Local Markdown, text, and text PDF imports produce line or page locators. `braindex source show ID REVISION` can display the text behind a citation. Rebuild the index after importing or installing sources. Rule changes take effect without a rebuild.
 
-See the [synthetic walkthrough](examples/founder-led-sales/README.md), [agent setup](docs/agent-integration.md), and [package format](docs/brain-package.md).
+Connect your agent by adding a short instruction to your `AGENTS.md`. For automatic lookup on matching prompts, configure the optional Codex hook. Both call the same `braindex` binary. [Agent setup](docs/agent-integration.md) · [Synthetic walkthrough](examples/founder-led-sales/README.md) · [Brain packages](docs/brain-package.md)
 
 ## Install from a tagged release
 
-With access to the repository and a published tag, install with:
+With access to the private repository, [download the current prerelease](https://github.com/sam-bretz/braindex/releases/tag/v0.1.0-rc.1) or install it with:
 
 ```sh
-GOPRIVATE=github.com/sam-bretz/braindex go install github.com/sam-bretz/braindex/cmd/braindex@v0.1.0
+GOPRIVATE=github.com/sam-bretz/braindex go install github.com/sam-bretz/braindex/cmd/braindex@v0.1.0-rc.1
 ```
 
-Release archives and checksums can also be prepared from a checkout. See the [release guide](docs/releasing.md).
+The prerelease includes macOS and Linux archives for arm64 and amd64, plus SHA-256 checksums. See the [release guide](docs/releasing.md).
 
 ## Diagnose a library
 
@@ -113,3 +113,5 @@ Use `braindex package install DIRECTORY` for a local export, or `braindex packag
 ## Project information
 
 [MIT license](LICENSE) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Release checks](docs/releasing.md) · [Changelog](CHANGELOG.md) · [Retrieval benchmark](docs/retrieval-benchmark.md)
+
+[Logo SVG](docs/assets/braindex-mark.svg) · [Logo PNG](docs/assets/braindex-mark.png) · [Social preview](docs/assets/braindex-social-preview.jpg)
