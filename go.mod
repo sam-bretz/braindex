@@ -3,7 +3,7 @@ module github.com/sam-bretz/braindex
 go 1.26.0
 
 require (
-	github.com/modelcontextprotocol/go-sdk v1.7.0
+	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/razvandimescu/gopdf v0.11.2
 	golang.org/x/net v0.62.0
 	modernc.org/sqlite v1.58.0
