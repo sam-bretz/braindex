@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -212,26 +211,17 @@ func Validate(directory string) (Manifest, error) {
 }
 
 func Install(store *library.Store, directory, brainID, origin string) (Manifest, error) {
-	manifest, sources, packageDigest, err := readPackage(directory)
+	candidate, err := Open(directory)
 	if err != nil {
 		return Manifest{}, err
 	}
-	if brainID == "" {
-		brainID = manifest.PackageID
+	if origin != "" {
+		candidate.Origin = origin
 	}
-	if origin == "" {
-		origin, err = filepath.Abs(directory)
-		if err != nil {
-			return Manifest{}, err
-		}
-	}
-	err = store.InstallBrain(library.Brain{ID: brainID, Name: manifest.Title}, sources, library.PackageReceipt{
-		PackageID: manifest.PackageID, Version: manifest.Version, Origin: origin, Digest: packageDigest,
-	})
-	if err != nil {
+	if err := candidate.Install(store, brainID); err != nil {
 		return Manifest{}, err
 	}
-	return manifest, nil
+	return candidate.Manifest, nil
 }
 
 func readPackage(directory string) (Manifest, []library.Source, string, error) {

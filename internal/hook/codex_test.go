@@ -17,7 +17,7 @@ func TestPromptHookOnlyEmitsCitedContextForMatches(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"sales", "denied"} {
+	for _, id := range []string{"sales", "markets", "denied"} {
 		if err := store.CreateBrain(library.Brain{ID: id, Name: id}); err != nil {
 			t.Fatal(err)
 		}
@@ -27,7 +27,7 @@ func TestPromptHookOnlyEmitsCitedContextForMatches(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := retrieval.SaveRule(store, retrieval.Rule{ID: "sales", Brains: []string{"sales", "denied"}, Phrases: []string{"founder discovery"}}); err != nil {
+	if err := retrieval.SaveRule(store, retrieval.Rule{ID: "sales", Brains: []string{"sales", "markets", "denied"}, Phrases: []string{"founder discovery"}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := retrieval.SetBrainAccess(store, "denied", false); err != nil {
@@ -62,6 +62,16 @@ func TestPromptHookOnlyEmitsCitedContextForMatches(t *testing.T) {
 	want, err := retrieval.Context(store, retrieval.Request{Query: "Founder-discovery?", Limit: 1})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if result.Routing.Scope != "matched_rules" || len(result.Brains) != 3 {
+		t.Fatalf("missing routed evidence: %+v", result)
+	}
+	for i, name := range []string{"sales", "markets"} {
+		brain := result.Brains[i]
+		if brain.ID != name || !brain.Searched || len(brain.Excerpts) != 1 ||
+			brain.Excerpts[0].Title != name || brain.Excerpts[0].Locator != "page 4" || brain.Excerpts[0].Revision == "" {
+			t.Fatalf("missing cited evidence for %s: %+v", name, brain)
+		}
 	}
 	if !reflect.DeepEqual(want, result) || strings.Contains(evidence, "denied founder discovery") {
 		t.Fatalf("hook result differs from scoped retrieval: got %#v; want %#v", result, want)

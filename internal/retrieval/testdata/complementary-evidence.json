@@ -1,0 +1,105 @@
+{
+  "sources": [
+    {
+      "id": "buyer-approval",
+      "brain": "sales",
+      "title": "Synthetic customer qualification notes",
+      "locator": "section 2",
+      "text": "Validate buyer budget approval during discovery. Ask which budget owner has signed off, what funds are already allocated, and whether purchasing can release the money this quarter.",
+      "vector": [1, 0, 0, 0]
+    },
+    {
+      "id": "sales-software",
+      "brain": "sales",
+      "title": "Synthetic sales operations notes",
+      "locator": "section 1",
+      "text": "Budget budget budget. Our sales organization keeps a budget spreadsheet for licenses and employee reimbursements.",
+      "vector": [0, 0, 1, 0]
+    },
+    {
+      "id": "credit-tightening",
+      "brain": "markets",
+      "title": "Synthetic credit monitor",
+      "locator": "page 4",
+      "text": "Credit conditions tighten when banks raise lending standards. Track delayed corporate investment and cuts to discretionary spending as evidence that customer caution could be widespread.",
+      "vector": [1, 0, 0, 0]
+    },
+    {
+      "id": "consumer-credit",
+      "brain": "markets",
+      "title": "Synthetic household finance notes",
+      "locator": "page 2",
+      "text": "Credit credit credit. The consumer credit newsletter compares loyalty bonuses across household cards.",
+      "vector": [0, 0, 1, 0]
+    },
+    {
+      "id": "crm-template",
+      "brain": "operations",
+      "title": "Synthetic CRM cleanup",
+      "locator": "line 3",
+      "text": "Buyer buyer buyer. The label buyer is deprecated in our CRM import format. Archive that column before migration.",
+      "vector": [0, 0, 1, 0]
+    },
+    {
+      "id": "reviewer-agreement",
+      "brain": "evals",
+      "title": "Synthetic reviewer checklist",
+      "locator": "line 4",
+      "text": "Check reviewer agreement on rubric scores using independently rated examples. Reconcile disagreements before opening the final benchmark.",
+      "vector": [0, 1, 0, 0]
+    },
+    {
+      "id": "rubric-layout",
+      "brain": "evals",
+      "title": "Synthetic rubric formatting",
+      "locator": "line 7",
+      "text": "Rubric rubric rubric. Center the rubric heading and use a consistent column width in the template.",
+      "vector": [0, 0, 1, 0]
+    },
+    {
+      "id": "rollout-guardrail",
+      "brain": "operations",
+      "title": "Synthetic canary checklist",
+      "locator": "step 3",
+      "text": "For a canary rollout, choose error thresholds with the on-call owner. Set an automatic rollback when the failure rate crosses the guardrail.",
+      "vector": [0, 1, 0, 0]
+    },
+    {
+      "id": "rollout-comms",
+      "brain": "operations",
+      "title": "Synthetic announcement notes",
+      "locator": "line 1",
+      "text": "Rollout rollout rollout. Draft rollout announcements and check the spelling of employee names.",
+      "vector": [0, 0, 1, 0]
+    }
+  ],
+  "queries": [
+    {
+      "id": "buyer-and-credit",
+      "question": "What buyer budget approval checks help founders qualify prospects when credit conditions tighten?",
+      "brains": ["sales", "markets", "operations", "empty"],
+      "expected": {
+        "sales": {"source": "buyer-approval", "locator": "section 2"},
+        "markets": {"source": "credit-tightening", "locator": "page 4"}
+      },
+      "vector": [1, 0, 0, 0]
+    },
+    {
+      "id": "evaluation-and-rollout",
+      "question": "Which reviewer agreement checks confirm rubric scores before canary rollout error thresholds trigger rollback?",
+      "brains": ["evals", "operations", "empty"],
+      "expected": {
+        "evals": {"source": "reviewer-agreement", "locator": "line 4"},
+        "operations": {"source": "rollout-guardrail", "locator": "step 3"}
+      },
+      "vector": [0, 1, 0, 0]
+    },
+    {
+      "id": "unrelated",
+      "question": "How do xylophone arpeggios use mallets?",
+      "brains": ["sales", "markets", "empty"],
+      "expected": {},
+      "vector": [0, 0, 0, 1]
+    }
+  ]
+}

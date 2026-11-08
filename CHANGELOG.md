@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## v0.1.0-rc.2
+
+- Preview a link and route selected articles, PDFs, feed items, or videos to a brain or the inbox.
+- Follow feeds, podcasts, YouTube series, or authors, then refresh and process selected items.
+- Discover an author's work, optionally transcribe podcast audio locally, and attach timestamped YouTube captions.
+- Review staged captures interactively, hand selected items to an agent, and preview or apply a batch of placements.
+- Explain topic routing and surface separately cited evidence from multiple brains.
+- Preview shared brain packages, compare their source inventories, and confirm a verified upgrade.
 
 - Add a read-only `braindex status` command for library and index diagnostics.
 - Add a labeled cross-brain retrieval benchmark and a Codex citation walkthrough.

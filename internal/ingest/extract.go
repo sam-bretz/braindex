@@ -49,7 +49,7 @@ func Extract(path string) (library.Source, error) {
 		}
 		source.Passages = LinePassages(strings.TrimPrefix(string(data), "\uFEFF"))
 	case ".pdf":
-		source.Passages, err = pdfPassages(data)
+		source.Passages, err = PDFPassages(data)
 	case ".eml":
 		source, err = ExtractEmail(data, path)
 	case ".vtt", ".srt":
@@ -114,12 +114,18 @@ func lineLocator(start, end int) string {
 	return fmt.Sprintf("lines %d-%d", start, end)
 }
 
-func pdfPassages(data []byte) ([]library.Passage, error) {
+// PDFPassages extracts page-aware text from a bounded PDF payload.
+func PDFPassages(data []byte) (passages []library.Passage, err error) {
+	// The parser can panic on corrupt stream offsets in untrusted documents.
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			passages, err = nil, fmt.Errorf("invalid PDF data: %v", recovered)
+		}
+	}()
 	document, err := pdf.OpenBytes(data)
 	if err != nil {
 		return nil, fmt.Errorf("open PDF: %w", err)
 	}
-	var passages []library.Passage
 	for i := 0; i < document.NumPages(); i++ {
 		text, err := document.Page(i).Text()
 		if err != nil {

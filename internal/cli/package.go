@@ -18,7 +18,7 @@ import (
 
 func (c command) brainPackage(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: braindex package export|validate|install")
+		return errors.New("usage: braindex package export|validate|install|preview|compare|upgrade")
 	}
 	switch args[0] {
 	case "export":
@@ -55,6 +55,8 @@ func (c command) brainPackage(args []string) error {
 			return err
 		}
 		return c.json(manifest)
+	case "preview", "compare", "upgrade":
+		return c.reviewPackage(args[0], args[1:])
 	case "install":
 		flags := newFlags("package install")
 		brainID := flags.String("brain", "", "local brain ID")
@@ -87,26 +89,37 @@ func (c command) brainPackage(args []string) error {
 }
 
 func installGit(store *library.Store, repository, version, brainID string) (brainpackage.Manifest, error) {
+	candidate, err := loadGitPackage(repository, version)
+	if err != nil {
+		return brainpackage.Manifest{}, err
+	}
+	if err := candidate.Install(store, brainID); err != nil {
+		return brainpackage.Manifest{}, err
+	}
+	return candidate.Manifest, nil
+}
+
+func loadGitPackage(repository, version string) (brainpackage.Candidate, error) {
 	if len(version) > 128 {
-		return brainpackage.Manifest{}, errors.New("invalid package version")
+		return brainpackage.Candidate{}, errors.New("invalid package version")
 	}
 	parsed, err := url.Parse(repository)
 	if err != nil {
-		return brainpackage.Manifest{}, errors.New("invalid Git repository")
+		return brainpackage.Candidate{}, errors.New("invalid Git repository")
 	}
 	if parsed.IsAbs() {
 		if parsed.Scheme != "https" || parsed.Hostname() == "" || parsed.User != nil || parsed.ForceQuery || parsed.RawQuery != "" || parsed.Fragment != "" {
-			return brainpackage.Manifest{}, errors.New("use an HTTPS Git URL without credentials, query, or fragment")
+			return brainpackage.Candidate{}, errors.New("use an HTTPS Git URL without credentials, query, or fragment")
 		}
 	} else {
 		repository, err = filepath.Abs(repository)
 		if err != nil {
-			return brainpackage.Manifest{}, err
+			return brainpackage.Candidate{}, err
 		}
 	}
 	directory, err := os.MkdirTemp("", "braindex-git-")
 	if err != nil {
-		return brainpackage.Manifest{}, err
+		return brainpackage.Candidate{}, err
 	}
 	defer os.RemoveAll(directory)
 	checkout := filepath.Join(directory, "package")
@@ -130,47 +143,49 @@ func installGit(store *library.Store, repository, version, brainID string) (brai
 	}
 	tag := "refs/tags/v" + version
 	if _, err := runGit("check-ref-format", tag); err != nil {
-		return brainpackage.Manifest{}, errors.New("invalid Git package version")
+		return brainpackage.Candidate{}, errors.New("invalid Git package version")
 	}
 	if _, err := runGit("-c", "core.hooksPath=/dev/null", "clone", "--quiet", "--no-local", "--no-checkout", "--filter=blob:none", "--depth=1", "--branch", "v"+version, "--", repository, checkout); err != nil {
-		return brainpackage.Manifest{}, err
+		return brainpackage.Candidate{}, err
 	}
 	commit, err := runGit("-C", checkout, "rev-parse", "--verify", tag+"^{commit}")
 	if err != nil {
-		return brainpackage.Manifest{}, err
+		return brainpackage.Candidate{}, err
 	}
 	head, err := runGit("-C", checkout, "rev-parse", "--verify", "HEAD")
 	if err != nil {
-		return brainpackage.Manifest{}, err
+		return brainpackage.Candidate{}, err
 	}
 	if strings.TrimSpace(string(head)) != strings.TrimSpace(string(commit)) {
-		return brainpackage.Manifest{}, errors.New("Git checkout did not resolve to the requested tag")
+		return brainpackage.Candidate{}, errors.New("Git checkout did not resolve to the requested tag")
 	}
 	tree, err := runGit("-C", checkout, "ls-tree", "-rlz", "HEAD", "--", "brain.json", "sources")
 	if err != nil {
-		return brainpackage.Manifest{}, err
+		return brainpackage.Candidate{}, err
 	}
 	paths, err := packageGitPaths(tree)
 	if err != nil {
-		return brainpackage.Manifest{}, err
+		return brainpackage.Candidate{}, err
 	}
 	// Only package data enters the worktree, even if the tag also contains
 	// unrelated repository contents or package-manager configuration.
 	pathspec := filepath.Join(directory, "package-paths")
 	if err := os.WriteFile(pathspec, []byte(strings.Join(paths, "\x00")+"\x00"), 0600); err != nil {
-		return brainpackage.Manifest{}, err
+		return brainpackage.Candidate{}, err
 	}
 	if _, err := runGit("-C", checkout, "-c", "core.hooksPath=/dev/null", "checkout", "HEAD", "--pathspec-from-file="+pathspec, "--pathspec-file-nul"); err != nil {
-		return brainpackage.Manifest{}, err
+		return brainpackage.Candidate{}, err
 	}
-	manifest, err := brainpackage.Validate(checkout)
+	candidate, err := brainpackage.Open(checkout)
 	if err != nil {
-		return brainpackage.Manifest{}, err
+		return brainpackage.Candidate{}, err
 	}
-	if manifest.Version != version {
-		return brainpackage.Manifest{}, fmt.Errorf("requested version %q does not match manifest version %q", version, manifest.Version)
+	if candidate.Manifest.Version != version {
+		return brainpackage.Candidate{}, fmt.Errorf("requested version %q does not match manifest version %q", version, candidate.Manifest.Version)
 	}
-	return brainpackage.Install(store, checkout, brainID, repository+"#"+strings.TrimSpace(string(commit)))
+	candidate.Commit = strings.TrimSpace(string(commit))
+	candidate.Origin = repository + "#" + candidate.Commit
+	return candidate, nil
 }
 
 func packageGitPaths(tree []byte) ([]string, error) {

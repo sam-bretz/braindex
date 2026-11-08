@@ -41,6 +41,7 @@ type Source struct {
 	Author         string    `json:"author,omitempty"`
 	Date           string    `json:"date,omitempty"`
 	URL            string    `json:"url,omitempty"`
+	AudioURL       string    `json:"audio_url,omitempty"`
 	Path           string    `json:"path,omitempty"`
 	Status         string    `json:"status"`
 	MIME           string    `json:"mime,omitempty"`
@@ -67,11 +68,12 @@ type PackageReceipt struct {
 }
 
 type catalog struct {
-	Version  int                       `json:"version"`
-	Brains   map[string]Brain          `json:"brains"`
-	Sources  map[string]sourceRecord   `json:"sources"`
-	Origins  map[string]string         `json:"origins"`
-	Packages map[string]PackageReceipt `json:"packages,omitempty"`
+	Version        int                                 `json:"version"`
+	Brains         map[string]Brain                    `json:"brains"`
+	Sources        map[string]sourceRecord             `json:"sources"`
+	Origins        map[string]string                   `json:"origins"`
+	Packages       map[string]PackageReceipt           `json:"packages,omitempty"`
+	PackageMembers map[string]map[string]PackageMember `json:"package_members,omitempty"`
 }
 
 type Store struct {
@@ -183,7 +185,7 @@ func sortedBrains(c *catalog) []Brain {
 }
 
 func (s *Store) PutSource(source Source, brainIDs []string) (Source, error) {
-	return s.putSource(source, brainIDs, false)
+	return s.putSource(source, brainIDs, false, nil)
 }
 
 // PutReference links an existing URL revision or records a new metadata-only
@@ -192,10 +194,55 @@ func (s *Store) PutReference(source Source, brainIDs []string) (Source, error) {
 	if strings.TrimSpace(source.URL) == "" || source.Path != "" || len(source.Passages) != 0 {
 		return Source{}, errors.New("source reference requires a URL and no local path or passages")
 	}
-	return s.putSource(source, brainIDs, true)
+	return s.putSource(source, brainIDs, true, nil)
 }
 
-func (s *Store) putSource(source Source, brainIDs []string, referenceOnly bool) (Source, error) {
+// PutDiscoveredSource refreshes connector metadata without losing concurrent transcript attachments.
+func (s *Store) PutDiscoveredSource(source Source, brainIDs []string, preserveTranscript bool) (Source, error) {
+	return s.putSource(source, brainIDs, false, func(source *Source, previous Source) {
+		source.Redistribution = previous.Redistribution
+		if preserveTranscript && source.Title == source.URL && previous.Title != "" {
+			source.Title = previous.Title
+		}
+		if preserveTranscript && source.Author == "" {
+			source.Author = previous.Author
+		}
+		if preserveTranscript && source.Date == "" {
+			source.Date = previous.Date
+		}
+		if preserveTranscript && len(source.Passages) == 0 && len(previous.Passages) > 0 {
+			source.Path, source.Status, source.Passages = previous.Path, previous.Status, previous.Passages
+		}
+	})
+}
+
+// PutTranscript replaces only the transcript fields on the latest source revision.
+func (s *Store) PutTranscript(id, path string, passages []Passage) (Source, error) {
+	if len(passages) == 0 {
+		return Source{}, errors.New("transcript contains no timestamped text")
+	}
+	var source Source
+	err := s.update(func(c *catalog) error {
+		record, exists := c.Sources[id]
+		if !exists {
+			return fmt.Errorf("source %q: %w", id, ErrNotFound)
+		}
+		current, err := s.readRevision(id, record.Current)
+		if err != nil {
+			return err
+		}
+		current.Path, current.Passages, current.Status = path, passages, "ready"
+		source, err = s.prepareSource(current)
+		if err != nil {
+			return err
+		}
+		source, err = s.recordSource(c, source, sourceOrigin(source))
+		return err
+	})
+	return source, err
+}
+
+func (s *Store) putSource(source Source, brainIDs []string, referenceOnly bool, merge func(*Source, Source)) (Source, error) {
 	var err error
 	source, err = s.prepareSource(source)
 	if err != nil {
@@ -206,6 +253,13 @@ func (s *Store) putSource(source Source, brainIDs []string, referenceOnly bool) 
 			if _, ok := c.Brains[id]; !ok {
 				return fmt.Errorf("brain %q: %w", id, ErrNotFound)
 			}
+		}
+		if record, exists := c.Sources[source.ID]; merge != nil && exists {
+			previous, err := s.readRevision(source.ID, record.Current)
+			if err != nil {
+				return err
+			}
+			merge(&source, previous)
 		}
 		origin := sourceOrigin(source)
 		if existing := c.Origins[origin]; referenceOnly && existing != "" {
@@ -236,48 +290,6 @@ func (s *Store) putSource(source Source, brainIDs []string, referenceOnly bool) 
 		return Source{}, err
 	}
 	return source, nil
-}
-
-// InstallBrain publishes an entire validated package and its receipt together.
-// Package sources use explicit namespaced IDs and do not change the origins of
-// ordinary local or connector imports.
-func (s *Store) InstallBrain(brain Brain, sources []Source, receipt PackageReceipt) error {
-	if err := ValidateID(brain.ID); err != nil {
-		return err
-	}
-	if strings.TrimSpace(brain.Name) == "" || receipt.PackageID == "" ||
-		receipt.Version == "" || receipt.Origin == "" || receipt.Digest == "" {
-		return errors.New("brain name and package receipt are required")
-	}
-	return s.update(func(c *catalog) error {
-		if _, exists := c.Brains[brain.ID]; exists {
-			if c.Packages[brain.ID] == receipt {
-				return nil
-			}
-			return fmt.Errorf("brain %q: %w", brain.ID, ErrExists)
-		}
-		brain.Sources = nil
-		for _, source := range sources {
-			if source.ID == "" || source.Path != "" {
-				return errors.New("package sources require an ID and cannot reference local paths")
-			}
-			source, err := s.prepareSource(source)
-			if err != nil {
-				return err
-			}
-			if _, err := s.recordSource(c, source, ""); err != nil {
-				return err
-			}
-			brain.Sources = append(brain.Sources, source.ID)
-		}
-		brain.Sources = uniqueSorted(brain.Sources)
-		c.Brains[brain.ID] = brain
-		if c.Packages == nil {
-			c.Packages = make(map[string]PackageReceipt)
-		}
-		c.Packages[brain.ID] = receipt
-		return nil
-	})
 }
 
 func (s *Store) prepareSource(source Source) (Source, error) {

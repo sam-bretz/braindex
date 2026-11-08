@@ -28,6 +28,20 @@ func get(ctx context.Context, endpoint string, headers map[string]string, maxByt
 }
 
 func request(ctx context.Context, method, endpoint string, headers map[string]string, body io.Reader, maxBytes int64) ([]byte, *url.URL, error) {
+	client := http.Client{
+		Timeout: 20 * time.Second,
+		CheckRedirect: func(next *http.Request, prior []*http.Request) error {
+			if method != http.MethodGet || len(headers) > 0 || len(prior) >= 5 {
+				return http.ErrUseLastResponse
+			}
+			_, err := webURL(next.URL.String())
+			return err
+		},
+	}
+	return requestWithClient(ctx, &client, method, endpoint, headers, body, maxBytes)
+}
+
+func requestWithClient(ctx context.Context, client *http.Client, method, endpoint string, headers map[string]string, body io.Reader, maxBytes int64) ([]byte, *url.URL, error) {
 	parsed, err := webURL(endpoint)
 	if err != nil {
 		return nil, nil, err
@@ -38,16 +52,6 @@ func request(ctx context.Context, method, endpoint string, headers map[string]st
 	}
 	for name, value := range headers {
 		req.Header.Set(name, value)
-	}
-	client := http.Client{
-		Timeout: 20 * time.Second,
-		CheckRedirect: func(next *http.Request, prior []*http.Request) error {
-			if method != http.MethodGet || len(headers) > 0 || len(prior) >= 5 {
-				return http.ErrUseLastResponse
-			}
-			_, err := webURL(next.URL.String())
-			return err
-		},
 	}
 	response, err := client.Do(req)
 	if err != nil {

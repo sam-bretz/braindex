@@ -131,3 +131,17 @@ func TestExtractRejectsNamedPipeWithoutWaitingForWriter(t *testing.T) {
 		t.Fatal("extract blocked on a named pipe with no writer")
 	}
 }
+
+func TestCorruptPDFStreamReturnsAnError(t *testing.T) {
+	data, err := os.ReadFile("testdata/two-pages.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	corrupt := strings.Replace(string(data), "/Length 64", "/Length -1", 1)
+	if corrupt == string(data) {
+		t.Fatal("PDF fixture has no known stream length")
+	}
+	if _, err := PDFPassages([]byte(corrupt)); err == nil {
+		t.Fatal("accepted an invalid PDF stream length")
+	}
+}

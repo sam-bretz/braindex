@@ -20,7 +20,7 @@ func TestServeReadOnlyContextOverStdioTransport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"sales", "private"} {
+	for _, id := range []string{"sales", "markets", "private"} {
 		if err := store.CreateBrain(library.Brain{ID: id, Name: id}); err != nil {
 			t.Fatal(err)
 		}
@@ -30,7 +30,7 @@ func TestServeReadOnlyContextOverStdioTransport(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := retrieval.SaveRule(store, retrieval.Rule{ID: "sales", Brains: []string{"sales", "private"}, Phrases: []string{"discovery"}}); err != nil {
+	if err := retrieval.SaveRule(store, retrieval.Rule{ID: "sales", Brains: []string{"sales", "markets", "private"}, Phrases: []string{"discovery"}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := retrieval.SetBrainAccess(store, "private", false); err != nil {
@@ -84,6 +84,22 @@ func TestServeReadOnlyContextOverStdioTransport(t *testing.T) {
 		var result retrieval.Result
 		if err := json.Unmarshal(data, &result); err != nil {
 			t.Fatal(err)
+		}
+		if query == "sales discovery" {
+			if result.Routing.Scope != "matched_rules" || len(result.Brains) != 3 {
+				t.Fatalf("missing routed evidence: %+v", result)
+			}
+			for i, name := range []string{"sales", "markets"} {
+				brain := result.Brains[i]
+				if brain.ID != name || !brain.Searched || len(brain.Excerpts) != 1 ||
+					!reflect.DeepEqual(brain.SelectedByTopics, []string{"sales"}) ||
+					brain.Excerpts[0].Title != name || brain.Excerpts[0].Locator != "page 9" || brain.Excerpts[0].Revision == "" {
+					t.Fatalf("missing cited evidence for %s: %+v", name, brain)
+				}
+			}
+			if denied := result.Brains[2]; denied.Status != "denied" || denied.Searched || len(denied.Excerpts) != 0 {
+				t.Fatalf("access policy was not applied: %+v", denied)
+			}
 		}
 		if !reflect.DeepEqual(expected, result) {
 			t.Fatalf("MCP result differs from CLI retrieval: got %#v; want %#v", result, expected)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/sam-bretz/braindex/internal/connectors"
 	"github.com/sam-bretz/braindex/internal/index"
 	"github.com/sam-bretz/braindex/internal/ingest"
 	"github.com/sam-bretz/braindex/internal/library"
@@ -25,7 +26,7 @@ func (s *stringsFlag) Set(value string) error {
 
 func (c command) source(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: braindex source add|list|show|transcript")
+		return errors.New("usage: braindex source add|list|show|transcript|transcribe|youtube-captions")
 	}
 	store, err := library.Open(c.root)
 	if err != nil {
@@ -64,6 +65,10 @@ func (c command) source(args []string) error {
 		return c.json(sources)
 	case "transcript":
 		return c.transcript(store, args[1:])
+	case "transcribe":
+		return c.transcribePodcast(store, args[1:], connectors.DownloadPodcastAudio)
+	case "youtube-captions":
+		return c.youtubeCaptions(store, args[1:])
 	case "show":
 		if len(args) != 2 && len(args) != 3 {
 			return errors.New("usage: braindex source show ID [REVISION]")
@@ -137,7 +142,8 @@ func (c command) context(args []string) error {
 	flags := newFlags("context")
 	topic := flags.String("topic", "", "explicit topic ID")
 	limit := flags.Int("limit", 0, "maximum excerpts per brain")
-	flags.Bool("json", false, "return JSON")
+	asJSON := flags.Bool("json", false, "return JSON")
+	explain := flags.Bool("explain", false, "explain selection and results as text")
 	mode := flags.String("mode", "auto", "auto, keyword, or semantic")
 	all := flags.Bool("all-brains", false, "search every brain allowed by your access rules")
 	var brains stringsFlag
@@ -147,7 +153,7 @@ func (c command) context(args []string) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return errors.New("usage: braindex context QUESTION [--topic TOPIC] [--brain ID | --all-brains] [--mode MODE] [--json]")
+		return errors.New("usage: braindex context QUESTION [--topic TOPIC] [--brain ID | --all-brains] [--mode MODE] [--explain | --json]")
 	}
 	store, err := library.Open(c.root)
 	if err != nil {
@@ -157,7 +163,35 @@ func (c command) context(args []string) error {
 	if err != nil {
 		return err
 	}
+	if *explain && !*asJSON {
+		return c.explainContext(result)
+	}
 	return c.json(result)
+}
+
+func (c command) explainContext(result retrieval.Result) error {
+	var text strings.Builder
+	fmt.Fprintf(&text, "Routing: %s (%s)\n", result.Routing.Scope, result.Status)
+	if len(result.Topics) > 0 {
+		fmt.Fprintf(&text, "Topics: %s\n", strings.Join(result.Topics, ", "))
+	}
+	if result.Retrieval != "" {
+		fmt.Fprintf(&text, "Retrieval: %s\n", result.Retrieval)
+	}
+	for _, brain := range result.Brains {
+		fmt.Fprintf(&text, "%s: %s (searched: %t)\n", brain.ID, brain.Status, brain.Searched)
+		if brain.Explicit {
+			fmt.Fprintln(&text, "  Explicitly selected.")
+		}
+		if len(brain.SelectedByTopics) > 0 {
+			fmt.Fprintf(&text, "  Selected by topics: %s\n", strings.Join(brain.SelectedByTopics, ", "))
+		}
+		for _, item := range brain.Excerpts {
+			fmt.Fprintf(&text, "  %q, %q (revision %s)\n  %q\n", item.Title, item.Locator, item.Revision, item.Text)
+		}
+	}
+	_, err := fmt.Fprint(c.out, text.String())
+	return err
 }
 
 func (c command) index(args []string) error {

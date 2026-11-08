@@ -44,7 +44,7 @@ func (c command) capture(args []string) error {
 
 func (c command) inbox(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: braindex inbox list|show|review|propose|approve|defer|dismiss")
+		return errors.New("usage: braindex inbox list|show|review|handoff|proposals|propose|approve|batch|defer|dismiss")
 	}
 	store, err := library.Open(c.root)
 	if err != nil {
@@ -87,28 +87,27 @@ func (c command) inbox(args []string) error {
 		_, err = io.Copy(c.out, file)
 		return err
 	case "review":
+		if len(args) == 1 || strings.HasPrefix(args[1], "-") {
+			return c.interactiveInboxReview(store, args[1:])
+		}
 		if len(args) != 2 {
-			return errors.New("usage: braindex inbox review ID")
+			return errors.New("usage: braindex inbox review [ID | --plan FILE]")
 		}
 		item, err := inbox.Get(store, args[1])
 		if err != nil {
 			return err
 		}
-		review := struct {
-			Item     inbox.Item `json:"item"`
-			Original string     `json:"original"`
-		}{Item: item, Original: item.Original}
-		switch item.Kind {
-		case "file":
-			review.Original = inbox.ContentPath(store, item)
-		case "note":
-			text, err := os.ReadFile(inbox.ContentPath(store, item))
-			if err != nil {
-				return err
-			}
-			review.Original = string(text)
+		review, err := inboxOriginal(store, item)
+		if err != nil {
+			return err
 		}
 		return c.json(review)
+	case "handoff":
+		return c.inboxHandoff(store, args[1:])
+	case "proposals":
+		return c.inboxProposals(store, args[1:])
+	case "batch":
+		return c.inboxBatch(store, args[1:])
 	case "propose":
 		if len(args) != 2 {
 			return errors.New("usage: braindex inbox propose ID < proposal.json")
@@ -168,57 +167,16 @@ func (c command) approveInbox(store *library.Store, args []string) error {
 	if item.Status == "approved" {
 		return c.json(item)
 	}
-	if *useProposal {
-		if item.Proposal == nil || item.Proposal.LeaveOut {
-			return errors.New("item has no proposed destinations")
-		}
-		brains, *newBrain = item.Proposal.Brains, item.Proposal.NewBrain
-	}
-	if *newBrain != "" {
-		if err := library.ValidateID(*newBrain); err != nil {
-			return err
-		}
-		brains = append(brains, *newBrain)
-	}
-	if len(brains) == 0 {
-		return errors.New("choose at least one destination brain")
-	}
-	for _, brain := range brains {
-		if err := library.ValidateID(brain); err != nil {
-			return err
-		}
-	}
-	existing := []string{}
-	for _, id := range brains {
-		if id != *newBrain {
-			existing = append(existing, id)
-		}
-	}
-	if err := requireBrains(store, existing); err != nil {
-		return err
-	}
-	source, err := captureSource(store, item)
+	decision, err := prepareInboxDecision(store, inboxDecision{
+		ItemID: item.ID, Action: "approve", Brains: brains, NewBrain: *newBrain, UseProposal: *useProposal,
+	})
 	if err != nil {
 		return err
 	}
-	if err := confirmPromotion(item.ID, brains); err != nil {
+	if err := confirmPromotion(item.ID, decision.Brains); err != nil {
 		return err
 	}
-	approved, err := inbox.Approve(store, item.ID, brains, func(original inbox.Item) (string, error) {
-		if *newBrain != "" {
-			if err := store.CreateBrain(library.Brain{ID: *newBrain}); err != nil {
-				return "", err
-			}
-		}
-		var saved library.Source
-		var err error
-		if original.Kind == "url" {
-			saved, err = store.PutReference(source, brains)
-		} else {
-			saved, err = store.PutSource(source, brains)
-		}
-		return saved.ID, err
-	})
+	approved, err := applyInboxDecision(store, decision)
 	if err != nil {
 		return err
 	}

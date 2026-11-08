@@ -28,17 +28,25 @@ Connect your agent by adding a short instruction to your `AGENTS.md`. For automa
 
 ## Install from a tagged release
 
-With access to the private repository, [download the current prerelease](https://github.com/sam-bretz/braindex/releases/tag/v0.1.0-rc.1) or install it with:
+With access to the private repository, [download the current prerelease](https://github.com/sam-bretz/braindex/releases/tag/v0.1.0-rc.2) or install it with:
 
 ```sh
-GOPRIVATE=github.com/sam-bretz/braindex go install github.com/sam-bretz/braindex/cmd/braindex@v0.1.0-rc.1
+GOPRIVATE=github.com/sam-bretz/braindex go install github.com/sam-bretz/braindex/cmd/braindex@v0.1.0-rc.2
 ```
 
 The prerelease includes macOS and Linux archives for arm64 and amd64, plus SHA-256 checksums. See the [release guide](docs/releasing.md).
 
+## Start from a link
+
+```sh
+braindex link https://www.foundingsales.com/introduction
+```
+
+Review what Braindex found, choose what to keep, and route it to an existing brain, a new brain, or the inbox. Public articles, PDFs, RSS, podcasts, and YouTube share this entry point. You can follow a feed or series and process only the episodes you select. [Link and follow walkthrough](docs/link-follow-walkthrough.md)
+
 ## Diagnose a library
 
-Run `braindex status` to see each brain's searchable source count, keyword and embedding index freshness, and optional tools on your path. Use `--json` for scripts and `--check-runtime` to probe the configured embedding model over loopback. For a specific query, `context --json` distinguishes a rule that did not match, a selected brain without searchable text, access denial, and a search that found no relevant passages.
+Run `braindex context QUESTION --explain` to see which rules matched, which brains were searched, and what they contributed. Run `braindex status` to see each brain's searchable source count, keyword and embedding index freshness, and optional tools on your path. Use `--json` for scripts and `--check-runtime` to probe the configured embedding model over loopback. For a specific query, `context --json` distinguishes a rule that did not match, a selected brain without searchable text, access denial, and a search that found no relevant passages.
 
 ## Semantic search across brains
 
@@ -65,7 +73,7 @@ braindex inbox list
 braindex inbox review ITEM_ID
 ```
 
-Use `braindex capture note -` to read a note from stdin. Ask an agent you trust to review selected items, then inspect its proposals. Approve the proposed placement with `braindex inbox approve ITEM_ID --use-proposal`, or choose a destination with `--brain ID` or `--new-brain ID`. Approval prompts in an interactive terminal. You can also defer or dismiss an item. Captures and proposals stay outside search and export until approved.
+Use `braindex capture note -` to read a note from stdin. Ask an agent you trust to review selected items, then inspect its proposals. Approve the proposed placement with `braindex inbox approve ITEM_ID --use-proposal`, or choose a destination with `--brain ID` or `--new-brain ID`. Approval prompts in an interactive terminal. You can also defer or dismiss an item. Captures and proposals stay outside search and export until approved. [Interactive review, agent handoff, and decision plans](docs/inbox-review.md)
 
 ## Back up or share
 
@@ -76,9 +84,23 @@ Use `braindex package export BRAIN_ID DIRECTORY --version 1.0.0` to create a sep
 ## Connectors
 
 - Import a saved newsletter with `braindex source add issue.eml --brain yardeni`.
-- Use `braindex discover web|rss|podcast URL --brain ID` to import a page or refresh a feed. Add `--create-brain` to bootstrap a destination. Repeat `--brain` to assign episodes to show and guest brains.
-- Use `braindex discover youtube PLAYLIST --brain ID` with `BRAINDEX_YOUTUBE_API_KEY` for playlist metadata. Attach a local VTT or SRT file with `braindex source transcript SOURCE_ID TRANSCRIPT`. Episodes with missing transcripts show as unavailable.
+- Use `braindex discover web|rss|podcast URL --brain ID` to import a page or refresh a feed. Add `--create-brain` to bootstrap a destination. Repeat `--brain` to assign episodes to show and guest brains. To make selected podcast episodes searchable, use `braindex source transcribe SOURCE_ID --transcriber PATH` with a local transcriber.
+- Use `braindex discover youtube PLAYLIST --brain ID` with `BRAINDEX_YOUTUBE_API_KEY`, or add `--yt-dlp` to discover a public channel or playlist using a local yt-dlp executable. Fetch selected caption tracks with `braindex source youtube-captions SOURCE_ID`, or attach a local VTT or SRT file with `braindex source transcript SOURCE_ID TRANSCRIPT`. Rebuild the index after attaching captions.
 - Import a local image with `braindex source add image.png --brain ID` after installing Tesseract. Citations include the recognized text region.
+
+[YouTube captions and local podcast transcription](docs/media-pilot.md#fetch-selected-youtube-captions)
+
+## Discover a person's public work
+
+Start from the author of an article, add a hint to distinguish people with the same name, and review possible articles, books, podcast appearances, and videos before adding them to an existing brain.
+
+```sh
+braindex brain create pete-kazanjy --name "Pete Kazanjy"
+braindex discover person "Pete Kazanjy" --brain pete-kazanjy \
+  --hint "Founding Sales" --seed https://www.foundingsales.com/introduction
+```
+
+Live search uses `BRAVE_SEARCH_API_KEY`. The search provider receives the name and optional hint. Select result numbers to save references, or pass `--import-articles` to also fetch text from selected article links. Rebuild the index after importing text. An agent or another search tool can supply a local results file if you prefer. [Discovery and media pilot](docs/media-pilot.md)
 
 ## Connect Gmail
 
@@ -109,6 +131,8 @@ Sync reads the selected collection and rebuilds the index. Notes have card and b
 ## Install a shared brain
 
 Use `braindex package install DIRECTORY` for a local export, or `braindex package install REPOSITORY --git --version 1.0.0` for a Git repository tagged `v1.0.0`. For a hosted catalog use `braindex catalog list URL` and `braindex catalog install URL PACKAGE_ID --version 1.0.0`. See the [static catalog pilot](docs/brain-package.md#static-catalog-pilot) to publish package files on an HTTPS host.
+
+Preview a package before installing it with `braindex package preview`. Use `package compare` to review source changes and `package upgrade` to confirm the exact manifest you reviewed. [Package preview and upgrade guide](docs/brain-package.md)
 
 ## Project information
 

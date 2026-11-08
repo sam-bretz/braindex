@@ -24,17 +24,22 @@ Commands:
   init [PATH]                       Initialize a library
   brain create ID [--name NAME]      Create a brain
   brain list                        List brains
-  source add|list|show|transcript              Manage indexed sources
+  source add|list|show|transcript   Manage indexed sources
+  source transcribe SOURCE_ID...   Transcribe podcast episodes locally
+  source youtube-captions ID...    Fetch selected YouTube captions
   discover web|rss|podcast|youtube  Discover and import sources
+  discover person NAME --brain ID   Review public work by a person
+  link URL                          Preview and route a source link
+  follow add|list|refresh|process|save  Track and process followed sources
   gmail login|labels               Connect Gmail and find labels
   sync gmail|heptabase              Sync a selected external collection
   rule set|list|access              Manage topic routing and access
   backup status                     Report missing or external originals
   index rebuild|embed               Rebuild keyword and optional local embedding indexes
-  context QUESTION                  Retrieve cited passages
+  context QUESTION [--explain]      Retrieve cited passages
   capture note|file|url VALUE       Save material for later review
-  inbox list|review|propose|approve    Review and place captured material
-  package export|validate|install   Share and install brain packages
+  inbox review|handoff|proposals|batch  Review and place captured material
+  package export|validate|install|preview|compare|upgrade  Manage brain packages
   catalog list|install              Discover pinned hosted packages
   mcp serve                         Serve read-only context over MCP
   hook codex                        Handle a Codex prompt hook
@@ -107,6 +112,10 @@ func (c command) run(name string, args []string) error {
 		return c.source(args)
 	case "discover":
 		return c.discover(args)
+	case "link":
+		return c.link(args)
+	case "follow":
+		return c.follow(args)
 	case "sync":
 		return c.sync(args)
 	case "gmail":

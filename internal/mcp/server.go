@@ -35,7 +35,7 @@ func newServer(store *library.Store) *sdk.Server {
 	closedWorld := false
 	sdk.AddTool(server, &sdk.Tool{
 		Name:        "braindex_context",
-		Description: "Return cited evidence grouped by brain. Use topic rules by default. Broaden the scope only when the user explicitly requests it. Present each source separately and distinguish synthesis from the cited evidence.",
+		Description: "Explain brain selection and return cited evidence grouped by brain. Use topic rules by default and broaden scope only when explicitly requested. Cite each contributing brain separately by title, locator, and revision. Report when a selected brain has no usable passages and label any synthesis separately.",
 		Annotations: &sdk.ToolAnnotations{Title: "Search Braindex context", ReadOnlyHint: true, OpenWorldHint: &closedWorld},
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, input contextInput) (*sdk.CallToolResult, retrieval.Result, error) {
 		result, err := retrieval.ContextWithContext(ctx, store, retrieval.Request{

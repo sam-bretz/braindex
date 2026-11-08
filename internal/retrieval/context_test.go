@@ -1,6 +1,7 @@
 package retrieval
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -60,7 +61,9 @@ func TestContextUsesUserRulesAndSeparatesOutcomes(t *testing.T) {
 	}
 
 	result := retrieve(Request{Query: "Customer-discovery!"})
-	if result.Status != "matched" || !reflect.DeepEqual(result.Topics, []string{"customer", "discovery"}) {
+	if result.Status != "matched" || result.Routing.Scope != "matched_rules" ||
+		!reflect.DeepEqual(result.Topics, []string{"customer", "discovery"}) ||
+		!reflect.DeepEqual(result.Brains[0].SelectedByTopics, result.Topics) {
 		t.Fatalf("unexpected routing result: %#v", result)
 	}
 	if len(result.Brains) != 3 ||
@@ -69,6 +72,11 @@ func TestContextUsesUserRulesAndSeparatesOutcomes(t *testing.T) {
 		result.Brains[2].ID != "missing" || result.Brains[2].Status != "unavailable" ||
 		!reflect.DeepEqual(result.Brains[2].UnavailableSources, []string{"missing-source"}) {
 		t.Fatalf("unexpected brain results: %#v", result.Brains)
+	}
+	payload, err := json.Marshal(result)
+	if err != nil || strings.Contains(string(payload), "TOP SECRET") || strings.Contains(string(payload), "denied-source") ||
+		result.Brains[1].Searched || result.Brains[2].Searched || !result.Brains[0].Searched {
+		t.Fatalf("unexpected search or privacy outcome: %s, %v", payload, err)
 	}
 	if len(result.Brains[0].Excerpts) != 1 {
 		t.Fatalf("unexpected excerpts: %#v", result.Brains[0].Excerpts)
@@ -81,12 +89,22 @@ func TestContextUsesUserRulesAndSeparatesOutcomes(t *testing.T) {
 	}
 
 	empty := retrieve(Request{Query: "obscure", Topic: "customer"})
-	if empty.Brains[0].Status != "no_relevant_passages" {
+	if empty.Routing.Scope != "explicit_topic" || !empty.Brains[0].Searched || empty.Brains[0].Status != "no_relevant_passages" {
 		t.Fatalf("must not search other brains after an empty result: %#v", empty)
 	}
 	unmatched := retrieve(Request{Query: "customers"})
-	if unmatched.Status != "unmatched" || len(unmatched.Brains) != 0 {
+	if unmatched.Status != "unmatched" || unmatched.Routing.Scope != "unmatched" || len(unmatched.Brains) != 0 {
 		t.Fatalf("must not match a phrase inside another word: %#v", unmatched)
+	}
+	explicit := retrieve(Request{Query: "obscure", Topic: "discovery", Brains: []string{"elsewhere", "sales"}})
+	if explicit.Routing.Scope != "explicit_topic" || len(explicit.Brains) != 3 ||
+		!explicit.Brains[0].Explicit || len(explicit.Brains[0].SelectedByTopics) != 0 ||
+		!explicit.Brains[1].Explicit || !reflect.DeepEqual(explicit.Brains[1].SelectedByTopics, []string{"discovery"}) {
+		t.Fatalf("unexpected explicit routing reasons: %#v", explicit)
+	}
+	all := retrieve(Request{Query: "customer discovery", AllBrains: true})
+	if all.Routing.Scope != "all_brains" || len(all.Brains) != 4 || len(all.Brains[3].SelectedByTopics) != 0 {
+		t.Fatalf("all-brains scope should not attribute selection to a rule: %#v", all)
 	}
 	if err := SaveRule(store, Rule{ID: "customer", Brains: []string{"elsewhere"}}); err != nil {
 		t.Fatal(err)

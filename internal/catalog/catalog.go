@@ -61,19 +61,30 @@ func List(ctx context.Context, address string) ([]Entry, error) {
 }
 
 func Install(ctx context.Context, store *library.Store, address, packageID, version, brainID string) (brainpackage.Manifest, error) {
-	c, err := newClient(address)
+	candidate, err := Load(ctx, address, packageID, version)
 	if err != nil {
 		return brainpackage.Manifest{}, err
 	}
-	if err := library.ValidateID(packageID); err != nil {
+	if err := candidate.Install(store, brainID); err != nil {
 		return brainpackage.Manifest{}, err
 	}
+	return candidate.Manifest, nil
+}
+
+func Load(ctx context.Context, address, packageID, version string) (brainpackage.Candidate, error) {
+	c, err := newClient(address)
+	if err != nil {
+		return brainpackage.Candidate{}, err
+	}
+	if err := library.ValidateID(packageID); err != nil {
+		return brainpackage.Candidate{}, err
+	}
 	if !versionPattern.MatchString(version) {
-		return brainpackage.Manifest{}, errors.New("an explicit, valid package version is required")
+		return brainpackage.Candidate{}, errors.New("an explicit, valid package version is required")
 	}
 	entries, err := c.list(ctx)
 	if err != nil {
-		return brainpackage.Manifest{}, err
+		return brainpackage.Candidate{}, err
 	}
 	var selected *Entry
 	for _, entry := range entries {
@@ -83,30 +94,32 @@ func Install(ctx context.Context, store *library.Store, address, packageID, vers
 		}
 	}
 	if selected == nil {
-		return brainpackage.Manifest{}, fmt.Errorf("catalog package %s@%s: %w", packageID, version, library.ErrNotFound)
+		return brainpackage.Candidate{}, fmt.Errorf("catalog package %s@%s: %w", packageID, version, library.ErrNotFound)
 	}
 	work, err := os.MkdirTemp("", "braindex-catalog-*")
 	if err != nil {
-		return brainpackage.Manifest{}, err
+		return brainpackage.Candidate{}, err
 	}
 	defer os.RemoveAll(work)
 	archive := filepath.Join(work, "package.zip")
 	if err := c.download(ctx, *selected, archive); err != nil {
-		return brainpackage.Manifest{}, err
+		return brainpackage.Candidate{}, err
 	}
 	directory := filepath.Join(work, "package")
 	if err := unpack(archive, directory); err != nil {
-		return brainpackage.Manifest{}, err
+		return brainpackage.Candidate{}, err
 	}
-	manifest, err := brainpackage.Validate(directory)
+	candidate, err := brainpackage.Open(directory)
 	if err != nil {
-		return brainpackage.Manifest{}, err
+		return brainpackage.Candidate{}, err
 	}
+	manifest := candidate.Manifest
 	if manifest.PackageID != selected.PackageID || manifest.Version != selected.Version || manifest.Publisher != selected.Publisher {
-		return brainpackage.Manifest{}, errors.New("package identity does not match catalog entry")
+		return brainpackage.Candidate{}, errors.New("package identity does not match catalog entry")
 	}
-	origin := c.address.String() + "#" + packageID + "@" + version
-	return brainpackage.Install(store, directory, brainID, origin)
+	candidate.Origin = c.address.String() + "#" + packageID + "@" + version
+	candidate.ArchiveDigest = selected.SHA256
+	return candidate, nil
 }
 
 func newClient(address string) (*client, error) {
