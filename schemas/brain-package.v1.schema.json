@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Braindex brain package version 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "version",
+    "title",
+    "sources"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "package_id": {
+      "$ref": "#/$defs/id"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$"
+    },
+    "title": {
+      "$ref": "#/$defs/text"
+    },
+    "publisher": {
+      "type": "string"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/reference"
+          },
+          {
+            "$ref": "#/$defs/bundle"
+          }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,127}$"
+    },
+    "text": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://[^?#]+$"
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "url"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "url": {
+          "$ref": "#/$defs/url"
+        }
+      }
+    },
+    "bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "file",
+        "title",
+        "redistribution",
+        "sha256"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "url": {
+          "$ref": "#/$defs/url"
+        },
+        "file": {
+          "type": "string",
+          "pattern": "^sources/[a-z0-9][a-z0-9_-]{0,127}\\.json$"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "author": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "redistribution": {
+          "$ref": "#/$defs/text"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    }
+  }
+}

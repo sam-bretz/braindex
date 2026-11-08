@@ -1,0 +1,107 @@
+{
+  "sources": [
+    {
+      "id": "buyer-budget",
+      "brain": "sales",
+      "title": "Buyer budget discovery",
+      "text": "During periods of economic uncertainty, founders should validate buyer willingness to spend by asking about current budget approvals and the costs of the existing workflow."
+    },
+    {
+      "id": "sales-hiring",
+      "brain": "sales",
+      "title": "Sales hiring",
+      "text": "A structured reference call helps founders hire a first sales rep. Ask previous managers about coaching, quotas, and work habits."
+    },
+    {
+      "id": "credit-conditions",
+      "brain": "markets",
+      "title": "Credit conditions",
+      "text": "When recession fears rise, tightening credit conditions and slowing business investment can signal that companies are about to cut discretionary spending."
+    },
+    {
+      "id": "interest-rates",
+      "brain": "markets",
+      "title": "Policy rates",
+      "text": "The central bank reviews inflation expectations and adjusts the policy rate to influence borrowing costs."
+    },
+    {
+      "id": "evaluation-rubric",
+      "brain": "evals",
+      "title": "Evaluation rubric",
+      "text": "Before comparing models, fix a rubric and score examples with multiple reviewers. Resolve inconsistent ratings before scaling the benchmark."
+    },
+    {
+      "id": "eval-holdout",
+      "brain": "evals",
+      "title": "Holdout data",
+      "text": "Keep a sealed holdout dataset that prompts and examples do not see. Run the final evaluation against it once the rubric is locked."
+    },
+    {
+      "id": "canary-release",
+      "brain": "operations",
+      "title": "Canary rollout",
+      "text": "Before a rollout, define rollback thresholds for failure rates. Send a small share of traffic to the candidate and stop if error rates rise."
+    },
+    {
+      "id": "maintenance-window",
+      "brain": "operations",
+      "title": "Maintenance window",
+      "text": "Coordinate database maintenance windows with incident responders and confirm ownership of backup restoration."
+    }
+  ],
+  "queries": [
+    {
+      "id": "cross-brain-downturn",
+      "question": "How can a startup tell if prospects will buy during a downturn?",
+      "brains": [
+        "sales",
+        "markets"
+      ],
+      "expected": [
+        "buyer-budget",
+        "credit-conditions"
+      ]
+    },
+    {
+      "id": "hiring-reference",
+      "question": "How should I run a structured reference call for my first sales rep?",
+      "brains": [
+        "sales"
+      ],
+      "expected": [
+        "sales-hiring"
+      ]
+    },
+    {
+      "id": "safe-model-rollout",
+      "question": "How should a team compare models with a rubric and set rollback thresholds for rollout?",
+      "brains": [
+        "evals",
+        "operations"
+      ],
+      "expected": [
+        "evaluation-rubric",
+        "canary-release"
+      ]
+    },
+    {
+      "id": "holdout-data",
+      "question": "What should be kept sealed as a holdout dataset?",
+      "brains": [
+        "evals"
+      ],
+      "expected": [
+        "eval-holdout"
+      ]
+    },
+    {
+      "id": "no-evidence",
+      "question": "Xylophone arpeggio technique",
+      "brains": [
+        "sales",
+        "markets"
+      ],
+      "expected": []
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Candidate version, such as v0.1.0
+        required: true
+        default: v0.1.0
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            go: '1.26.x'
+          - os: macos-15
+            go: '1.27.x'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: ${{ matrix.go }}
+      - run: go mod verify
+      - name: Check formatting
+        run: test -z "$(git ls-files '*.go' | xargs gofmt -l)"
+      - run: go vet ./...
+      - run: go test -race ./...
+      - run: CGO_ENABLED=0 go build -trimpath -o bin/braindex ./cmd/braindex
+      - run: sh scripts/smoke.sh ./bin/braindex
+      - name: Check reachable vulnerabilities
+        if: runner.os == 'Linux'
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
+
+  package:
+    if: github.event_name == 'workflow_dispatch'
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: '1.27.x'
+      - name: Build candidate archives
+        env:
+          BRAINDEX_RELEASE_VERSION: ${{ inputs.version }}
+        run: sh scripts/release.sh "$BRAINDEX_RELEASE_VERSION"
+      - name: Verify checksums and smoke-test Linux archive
+        env:
+          BRAINDEX_RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          temp=$(mktemp -d)
+          trap 'rm -rf "$temp"' EXIT
+          (cd dist && sha256sum -c "braindex_${BRAINDEX_RELEASE_VERSION}_checksums.txt")
+          tar -xzf "dist/braindex_${BRAINDEX_RELEASE_VERSION}_linux_amd64.tar.gz" -C "$temp"
+          test "$("$temp/braindex" --version)" = "braindex $BRAINDEX_RELEASE_VERSION"
+          sh scripts/smoke.sh "$temp/braindex"
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: braindex-release-candidate
+          path: dist/
+          if-no-files-found: error

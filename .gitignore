@@ -1,0 +1,19 @@
+# Build outputs
+/bin/
+/dist/
+
+# Private local state
+.braindex/
+/.braindex-library/
+/.beads/
+*.gate.lock*
+.dolt/
+*.db
+.beads-credential-key
+/design_draft.md
+.env
+.env.*
+client_secret*.json
+credentials.json
+gmail.json
+token.json
