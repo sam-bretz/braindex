@@ -1,0 +1,33 @@
+name: Publish to Homebrew
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published Braindex release tag, such as v0.1.0-rc.5
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: braindex-homebrew
+  queue: max
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Mirror verified macOS archives and update formula
+        env:
+          BRAINDEX_RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          SOURCE_TOKEN: ${{ github.token }}
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: python3 scripts/update-homebrew.py
