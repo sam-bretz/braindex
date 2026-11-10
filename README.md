@@ -2,6 +2,17 @@
 
 Braindex is a local CLI that gives coding agents cited passages from the sources you trust. A brain can be one source or a collection. You decide which brains the agent consults for each topic.
 
+## Install with Homebrew
+
+On macOS, install on Apple Silicon or Intel with:
+
+```sh
+brew install sam-bretz/tap/braindex
+braindex demo
+```
+
+The [public Homebrew tap](https://github.com/sam-bretz/homebrew-tap) provides the macOS binaries.
+
 ## Build and try it
 
 The core CLI is a single binary for macOS and Linux. Text import and keyword retrieval require no account, model, or background service. Ollama, Git, Tesseract, Heptabase, and provider credentials are used only by the features that need them.
