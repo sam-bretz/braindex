@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import time
 
 TAP = "sam-bretz/homebrew-tap"
 FORMULA = "Formula/braindex.rb"
@@ -87,6 +88,18 @@ def tap_release(token, public_tag):
     return json.loads(releases) if releases.strip() else None
 
 
+def wait_for_tap_release(token, public_tag):
+    # GitHub can acknowledge creation before the release appears in the list.
+    for delay in (0, 1, 2, 4, 8, 15):
+        if delay:
+            time.sleep(delay)
+        release = tap_release(token, public_tag)
+        if release is not None:
+            return release
+    raise ValueError(f"Tap release {public_tag} is still unavailable after 30 seconds of retries. "
+                     "Rerun the workflow to resume the draft.")
+
+
 def check_public_assets(release, hashes):
     assets = {asset["name"]: asset for asset in release["assets"]}
     if assets.keys() - hashes.keys():
@@ -133,7 +146,7 @@ def mirror(tag, source, source_token, tap_token):
             gh(tap_token, "release", "create", public_tag, "-R", TAP, "--draft",
                "--title", f"Braindex {tag}", "--notes", "Braindex binaries for macOS.",
                "--latest=false", *flags)
-            release = tap_release(tap_token, public_tag)
+            release = wait_for_tap_release(tap_token, public_tag)
 
         missing = check_public_assets(release, hashes)
         if missing:
