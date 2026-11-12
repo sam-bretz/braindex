@@ -23,19 +23,15 @@ func TestComplementaryEvidence(t *testing.T) {
 			Vector                          []int
 		}
 		Queries []struct {
-			ID, Question string
-			Brains       []string
-			Expected     map[string]expectedPassage
-			Vector       []int
+			ID, Question         string
+			Brains               []string
+			Expected             map[string]expectedPassage
+			Vector               []int
+			MaxHybridIrrelevant  int `json:"max_hybrid_irrelevant"`
+			MaxHybridExtraBrains int `json:"max_hybrid_extra_brains"`
 		}
 	}
-	data, err := os.ReadFile("testdata/complementary-evidence.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(data, &fixture); err != nil {
-		t.Fatal(err)
-	}
+	readEvalFixture(t, "testdata/complementary-evidence.json", &fixture)
 	store, err := library.Init(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -46,12 +42,9 @@ func TestComplementaryEvidence(t *testing.T) {
 		}
 	}
 	vectors := map[string][]int{}
+	sources := map[string]evalSource{}
 	for _, source := range fixture.Sources {
-		_, err := store.PutSource(library.Source{ID: source.ID, Title: source.Title,
-			Passages: []library.Passage{{Text: source.Text, Locator: source.Locator}}}, []string{source.Brain})
-		if err != nil {
-			t.Fatal(err)
-		}
+		sources[source.ID] = putEvalSource(t, store, source.Brain, source.ID, source.Title, source.Locator, source.Text)
 		vectors["search_document: "+source.Text] = source.Vector
 	}
 	for _, sample := range fixture.Queries {
@@ -61,6 +54,77 @@ func TestComplementaryEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	type runConfig struct {
+		name, model string
+	}
+	runs := []runConfig{{name: "keyword"}, {name: "hybrid_fixture", model: "fixture"}}
+	if model := os.Getenv("BRAINDEX_EVAL_MODEL"); model != "" {
+		runs = append(runs, runConfig{name: "hybrid_local", model: model})
+	}
+	for _, run := range runs {
+		t.Run(run.name, func(t *testing.T) {
+			requestMode, wantMode := "keyword", "keyword"
+			if run.model != "" {
+				if run.name == "hybrid_fixture" {
+					setFixtureEmbeddings(t, vectors)
+				}
+				rebuildEvalEmbeddings(t, store, run.model)
+				requestMode, wantMode = "auto", "hybrid"
+			}
+			var expected, top1, top3, passages, irrelevant, irrelevantBrains, contributingBrains int
+			for _, sample := range fixture.Queries {
+				result := runEvalQuery(t, store, sample.ID, sample.Question, sample.Brains, requestMode, wantMode)
+				expected += len(sample.Expected)
+				var extraPassages, extraBrains int
+				for _, brain := range result.Brains {
+					want, relevant := sample.Expected[brain.ID]
+					if len(brain.Excerpts) > 0 {
+						contributingBrains++
+						if !relevant {
+							extraBrains++
+						}
+					}
+					found := false
+					for rank, excerpt := range brain.Excerpts {
+						passages++
+						checkEvalCitation(t, sample.ID, brain.ID, sources[excerpt.SourceID], excerpt)
+						t.Logf("%s: %s #%d %s %s", sample.ID, brain.ID, rank+1, excerpt.SourceID, excerpt.Match)
+						if relevant && !found && excerpt.SourceID == want.Source && excerpt.Locator == want.Locator {
+							found = true
+							top3++
+							if rank == 0 {
+								top1++
+							}
+						} else {
+							extraPassages++
+						}
+					}
+					if relevant && (!found || brain.Excerpts[0].SourceID != want.Source || brain.Excerpts[0].Locator != want.Locator) {
+						t.Errorf("%s: %s should rank %s at %s first", sample.ID, brain.ID, want.Source, want.Locator)
+					}
+				}
+				maxPassages, maxBrains := 0, 0
+				if run.name == "hybrid_local" {
+					maxPassages, maxBrains = sample.MaxHybridIrrelevant, sample.MaxHybridExtraBrains
+				}
+				if extraPassages > maxPassages || extraBrains > maxBrains {
+					t.Errorf("%s: %d irrelevant passages and %d irrelevant contributing brains, maximum %d and %d",
+						sample.ID, extraPassages, extraBrains, maxPassages, maxBrains)
+				}
+				irrelevant += extraPassages
+				irrelevantBrains += extraBrains
+			}
+			t.Logf("per-brain top-1 coverage %d/%d, top-3 coverage %d/%d, irrelevant passages %d/%d, irrelevant contributing brains %d/%d",
+				top1, expected, top3, expected, irrelevant, passages, irrelevantBrains, contributingBrains)
+			if top1 != expected {
+				t.Errorf("missing complementary evidence at rank 1")
+			}
+		})
+	}
+}
+
+func setFixtureEmbeddings(t *testing.T, vectors map[string][]int) {
+	t.Helper()
 	model := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/tags":
@@ -89,54 +153,6 @@ func TestComplementaryEvidence(t *testing.T) {
 			http.NotFound(w, r)
 		}
 	}))
-	defer model.Close()
+	t.Cleanup(model.Close)
 	t.Setenv("BRAINDEX_OLLAMA_PORT", strconv.Itoa(model.Listener.Addr().(*net.TCPAddr).Port))
-	if err := index.RebuildEmbeddings(t.Context(), store, "fixture", 0.55); err != nil {
-		t.Fatal(err)
-	}
-
-	for _, mode := range []string{"keyword", "hybrid"} {
-		t.Run(mode, func(t *testing.T) {
-			requestMode := mode
-			if mode == "hybrid" {
-				requestMode = "auto"
-			}
-			var expected, top1, top3, passages, irrelevant, irrelevantBrains, contributingBrains int
-			for _, sample := range fixture.Queries {
-				result, err := Context(store, Request{Query: sample.Question, Brains: sample.Brains, Mode: requestMode, Limit: 3})
-				if err != nil || result.Retrieval != mode {
-					t.Fatalf("%s: %s retrieval failed: %v", sample.ID, result.Retrieval, err)
-				}
-				expected += len(sample.Expected)
-				for _, brain := range result.Brains {
-					want, relevant := sample.Expected[brain.ID]
-					if len(brain.Excerpts) > 0 {
-						contributingBrains++
-						if !relevant {
-							irrelevantBrains++
-						}
-					}
-					for rank, excerpt := range brain.Excerpts {
-						passages++
-						if excerpt.Title == "" || excerpt.Locator == "" || excerpt.Revision == "" {
-							t.Fatalf("%s: uncitable excerpt %#v", sample.ID, excerpt)
-						}
-						if relevant && excerpt.SourceID == want.Source && excerpt.Locator == want.Locator {
-							top3++
-							if rank == 0 {
-								top1++
-							}
-						} else {
-							irrelevant++
-						}
-					}
-				}
-			}
-			t.Logf("per-brain top-1 coverage %d/%d, top-3 coverage %d/%d, irrelevant passages %d/%d, irrelevant contributing brains %d/%d",
-				top1, expected, top3, expected, irrelevant, passages, irrelevantBrains, contributingBrains)
-			if top1 != expected || top3 != expected || irrelevant != 0 || irrelevantBrains != 0 {
-				t.Fatal("complementary evidence is missing or an irrelevant passage contributed")
-			}
-		})
-	}
 }

@@ -1,5 +1,7 @@
 # Retrieval benchmark
 
+See the [eval regression suite](evals.md) for the combined runner and the current local-model baseline.
+
 The [labeled fixture](../internal/retrieval/testdata/retrieval-eval.json) uses eight synthetic documents across four brains and five questions. It tests finding evidence in two different brains, matching direct wording, matching paraphrases, and returning no evidence for an unrelated question.
 
 ```sh

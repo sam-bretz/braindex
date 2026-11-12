@@ -173,12 +173,8 @@ func (c command) linkUsing(args []string, probe func(context.Context, string, in
 			fmt.Fprintf(c.out, "Staged %s in the inbox.\n", item.ID)
 			continue
 		}
-		source, extractErr := preview.SelectedSource(number - 1)
-		if extractErr != nil {
-			fmt.Fprintln(c.out, extractErr)
-		}
 		var saved library.Source
-		if preview.Kind == "reference" || extractErr != nil {
+		if preview.Kind == "reference" || preview.Kind == "pdf" {
 			saved, err = store.PutReference(source, []string{*brain})
 		} else {
 			saved, err = store.PutDiscoveredSource(source, []string{*brain}, preview.Kind == "youtube" || preview.Kind == "podcast")

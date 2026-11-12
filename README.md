@@ -1,6 +1,20 @@
-# ![Braindex — Trusted sources. Cited answers.](docs/assets/braindex-banner.jpg)
+# <img src="docs/assets/braindex-mark.png" width="40" alt=""> Braindex
 
-Braindex is a local CLI that gives coding agents cited passages from the sources you trust. A brain can be one source or a collection. You decide which brains the agent consults for each topic.
+Give Codex and Claude Code cited passages from the sources you choose. A brain
+can be one trusted source or a collection. You decide which brains your agent
+consults for each topic.
+
+**“How should I run founder-led sales discovery when budget tightening is slowing purchases?”**
+
+| Your selected brain | What the agent cited |
+| --- | --- |
+| Discovery Field Notes | “For founder-led sales discovery, open with the last real incident and ask what workaround the buyer used.” · line 1 |
+| Buying Climate Brief | “When budget tightening slows purchases, ask who can fund a small pilot this quarter.” · line 1 |
+
+Codex and Claude Code each returned both citations on this ordinary question
+using a synthetic library. The built-in demo also reopens the original
+**Buying Climate Brief, line 1** and verifies the quote against its stored
+revision. [Agent pilot](docs/agent-integration.md#cli-first-pilot)
 
 ## Install with Homebrew
 
@@ -13,9 +27,16 @@ braindex demo
 
 The [public Homebrew tap](https://github.com/sam-bretz/homebrew-tap) provides the macOS binaries.
 
-## Build and try it
+Expect two cited brains, followed by `Reopened source: Buying Climate Brief, line 1`.
+The demo creates and cleans up a temporary library. It runs without an account,
+Go, a model, or network access.
 
-The core CLI is a single binary for macOS and Linux. Text import and keyword retrieval require no account, model, or background service. Ollama, Git, Tesseract, Heptabase, and provider credentials are used only by the features that need them.
+## Build and use your own library
+
+The core CLI is a single binary for macOS and Linux. Text import and keyword
+retrieval work without a background service. Ollama, Git, Tesseract, Heptabase,
+and provider credentials are optional and specific to the workflows that use
+them.
 
 From a source checkout with Go 1.26 or newer:
 
@@ -39,10 +60,10 @@ Connect your agent by adding a short instruction to your `AGENTS.md`. For automa
 
 ## Install from a tagged release
 
-With access to the private repository, [download the current prerelease](https://github.com/sam-bretz/braindex/releases/tag/v0.1.0-rc.2) or install it with:
+With access to the private repository, [download the current prerelease](https://github.com/sam-bretz/braindex/releases) or install it with:
 
 ```sh
-GOPRIVATE=github.com/sam-bretz/braindex go install github.com/sam-bretz/braindex/cmd/braindex@v0.1.0-rc.2
+GOPRIVATE=github.com/sam-bretz/braindex go install github.com/sam-bretz/braindex/cmd/braindex@v0.1.0-rc.6
 ```
 
 The prerelease includes macOS and Linux archives for arm64 and amd64, plus SHA-256 checksums. See the [release guide](docs/releasing.md).
@@ -53,7 +74,7 @@ The prerelease includes macOS and Linux archives for arm64 and amd64, plus SHA-2
 braindex link https://www.foundingsales.com/introduction
 ```
 
-Review what Braindex found, choose what to keep, and route it to an existing brain, a new brain, or the inbox. Public articles, PDFs, RSS, podcasts, and YouTube share this entry point. You can follow a feed or series and process only the episodes you select. [Link and follow walkthrough](docs/link-follow-walkthrough.md)
+Review what Braindex found, choose what to keep, and route it to an existing brain, a new brain, or the inbox. Public articles, RSS, podcasts, and YouTube share this entry point. PDF URLs are saved as references. Use `source add` for text extraction from a trusted local PDF. You can follow a feed or series and process only the episodes you select. [Link and follow walkthrough](docs/link-follow-walkthrough.md)
 
 ## Diagnose a library
 
@@ -84,7 +105,7 @@ braindex inbox list
 braindex inbox review ITEM_ID
 ```
 
-Use `braindex capture note -` to read a note from stdin. Ask an agent you trust to review selected items, then inspect its proposals. Approve the proposed placement with `braindex inbox approve ITEM_ID --use-proposal`, or choose a destination with `--brain ID` or `--new-brain ID`. Approval prompts in an interactive terminal. You can also defer or dismiss an item. Captures and proposals stay outside search and export until approved. [Interactive review, agent handoff, and decision plans](docs/inbox-review.md)
+Use `braindex capture note -` to read a note from stdin. Ask an agent you trust to review selected items, then inspect its proposals. Approve the proposed placement with `braindex inbox approve ITEM_ID --use-proposal`, or choose a destination with `--brain ID` or `--new-brain ID`. Approval prompts in an interactive terminal. You can also defer or dismiss an item. Captures and proposals stay outside search and export until approved. Use `braindex inbox suggest ITEM_ID --model nomic-embed-text` for a read-only destination suggestion from a local model. [Interactive review, agent handoff, and decision plans](docs/inbox-review.md)
 
 ## Back up or share
 

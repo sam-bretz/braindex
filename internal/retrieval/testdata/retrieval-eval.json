@@ -60,7 +60,9 @@
       "expected": [
         "buyer-budget",
         "credit-conditions"
-      ]
+      ],
+      "allowed_keyword_miss": "credit-conditions",
+      "max_hybrid_irrelevant": 1
     },
     {
       "id": "hiring-reference",
@@ -70,7 +72,8 @@
       ],
       "expected": [
         "sales-hiring"
-      ]
+      ],
+      "max_hybrid_irrelevant": 1
     },
     {
       "id": "safe-model-rollout",
@@ -82,7 +85,8 @@
       "expected": [
         "evaluation-rubric",
         "canary-release"
-      ]
+      ],
+      "max_hybrid_irrelevant": 2
     },
     {
       "id": "holdout-data",

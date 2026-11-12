@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/sam-bretz/braindex/internal/connectors"
@@ -144,6 +145,7 @@ func (c command) context(args []string) error {
 	limit := flags.Int("limit", 0, "maximum excerpts per brain")
 	asJSON := flags.Bool("json", false, "return JSON")
 	explain := flags.Bool("explain", false, "explain selection and results as text")
+	compareRanker := flags.Bool("compare-ranker", false, "compare the local ranker without changing the baseline")
 	mode := flags.String("mode", "auto", "auto, keyword, or semantic")
 	all := flags.Bool("all-brains", false, "search every brain allowed by your access rules")
 	var brains stringsFlag
@@ -153,13 +155,16 @@ func (c command) context(args []string) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return errors.New("usage: braindex context QUESTION [--topic TOPIC] [--brain ID | --all-brains] [--mode MODE] [--explain | --json]")
+		return errors.New("usage: braindex context QUESTION [--topic TOPIC] [--brain ID | --all-brains] [--mode MODE] [--compare-ranker] [--explain | --json]")
 	}
 	store, err := library.Open(c.root)
 	if err != nil {
 		return err
 	}
-	result, err := retrieval.Context(store, retrieval.Request{Query: pos[0], Topic: *topic, Brains: brains, Limit: *limit, AllBrains: *all, Mode: *mode})
+	result, err := retrieval.Context(store, retrieval.Request{
+		Query: pos[0], Topic: *topic, Brains: brains, Limit: *limit, AllBrains: *all,
+		Mode: *mode, CompareRanker: *compareRanker,
+	})
 	if err != nil {
 		return err
 	}
@@ -188,6 +193,26 @@ func (c command) explainContext(result retrieval.Result) error {
 		}
 		for _, item := range brain.Excerpts {
 			fmt.Fprintf(&text, "  %q, %q (revision %s)\n  %q\n", item.Title, item.Locator, item.Revision, item.Text)
+		}
+	}
+	if comparison := result.RankerComparison; comparison != nil {
+		if comparison.Status != "compared" {
+			fmt.Fprintf(&text, "Ranker comparison unavailable (%s).\n", comparison.Reason)
+		} else {
+			fmt.Fprintf(&text, "Ranker comparison (%s, minimum cosine %.4f):\n", comparison.Model, comparison.MinimumCosine)
+			for i, brain := range comparison.Brains {
+				fmt.Fprintf(&text, "  %s: %s, kept %d, omitted %d\n", brain.ID, brain.Status, len(brain.Excerpts), brain.Removed)
+				for _, item := range brain.Excerpts {
+					fmt.Fprintf(&text, "    kept %q, %q (revision %s)\n", item.Title, item.Locator, item.Revision)
+				}
+				for _, item := range result.Brains[i].Excerpts {
+					if !slices.ContainsFunc(brain.Excerpts, func(kept retrieval.Excerpt) bool {
+						return kept.SourceID == item.SourceID && kept.Revision == item.Revision && kept.Locator == item.Locator
+					}) {
+						fmt.Fprintf(&text, "    omitted %q, %q (revision %s)\n", item.Title, item.Locator, item.Revision)
+					}
+				}
+			}
 		}
 	}
 	_, err := fmt.Fprint(c.out, text.String())

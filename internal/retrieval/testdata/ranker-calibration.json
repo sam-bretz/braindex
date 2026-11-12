@@ -1,0 +1,21 @@
+{
+  "sources": [
+    {"id":"seedling-air","brain":"greenhouse","title":"Seedling air circulation","text":"Reduce fungal losses in young plants by removing stagnant moisture with an oscillating fan and airing propagation trays."},
+    {"id":"tray-stock","brain":"greenhouse","title":"Propagation supplies","text":"The greenhouse inventory counts plastic propagation trays and records orders for replacement shelving."},
+    {"id":"office-air","brain":"building","title":"Office ventilation repairs","text":"A ventilation contractor replaced the air filters and circulation fans on the office roof."},
+    {"id":"chain-clean","brain":"bicycle","title":"Drivetrain maintenance","text":"To remove abrasive grit from a bicycle chain, brush it with degreaser, rinse and dry it before applying fresh lubricant."},
+    {"id":"gear-clean","brain":"bicycle","title":"Bike washing","text":"Rinse mud off the bicycle frame before wiping the handlebars and polishing the fork."},
+    {"id":"bridge-wash","brain":"building","title":"Walkway upkeep","text":"Remove grit from the concrete entrance with a stiff brush before repainting the markings."},
+    {"id":"modal-focus","brain":"accessibility","title":"Keyboard dialog behavior","text":"When a dialog closes, return keyboard focus to the control that opened it so screen-reader users recover their place."},
+    {"id":"modal-theme","brain":"accessibility","title":"Dialog design tokens","text":"Dialog typography uses the standard screen font. The title and button contrast follow the design tokens."},
+    {"id":"lab-log","brain":"laboratory","title":"Freezer readings","text":"Record the freezer temperature every morning and alert the lab manager when a sensor drifts out of range."},
+    {"id":"lab-keys","brain":"laboratory","title":"Key cabinet","text":"Log who takes an access key from the cabinet and check returned keys at the end of each shift."}
+  ],
+  "queries": [
+    {"id":"fungal-loss","question":"How do I keep damp seedlings from getting moldy?","brains":["greenhouse","building"],"expected":["seedling-air"]},
+    {"id":"gritty-chain","question":"How should I clean a gritty bicycle chain before lubricating it?","brains":["bicycle","building"],"expected":["chain-clean"]},
+    {"id":"restore-focus","question":"Where should keyboard focus go after dismissing a dialog?","brains":["accessibility"],"expected":["modal-focus"]},
+    {"id":"freezer","question":"How often should staff check freezer temperature and report a problem?","brains":["laboratory"],"expected":["lab-log"]},
+    {"id":"irrelevant","question":"How do I handle a payroll dispute?","brains":["laboratory","building"],"expected":[]}
+  ]
+}

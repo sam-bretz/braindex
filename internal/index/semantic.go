@@ -32,6 +32,7 @@ type SemanticIndex struct {
 	db      *sql.DB
 	query   []float32
 	minimum float64
+	model   embeddingModel
 }
 
 type VectorMatch struct {
@@ -226,7 +227,12 @@ func OpenSemantic(ctx context.Context, store *library.Store, sources []library.S
 	if len(vectors[0]) != settings.dimension {
 		return nil, ErrEmbeddingsStale
 	}
-	return &SemanticIndex{db: db, query: vectors[0], minimum: settings.minimum}, nil
+	return &SemanticIndex{db: db, query: vectors[0], minimum: settings.minimum, model: model}, nil
+}
+
+// ModelIdentity identifies the installed model verified for this query.
+func (s *SemanticIndex) ModelIdentity() (name, digest string) {
+	return s.model.name, s.model.digest
 }
 
 func (s *SemanticIndex) Close() error { return s.db.Close() }
