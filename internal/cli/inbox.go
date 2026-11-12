@@ -44,7 +44,7 @@ func (c command) capture(args []string) error {
 
 func (c command) inbox(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: braindex inbox list|show|review|handoff|proposals|propose|approve|batch|defer|dismiss")
+		return errors.New("usage: braindex inbox list|show|review|suggest|handoff|proposals|propose|approve|batch|defer|dismiss")
 	}
 	store, err := library.Open(c.root)
 	if err != nil {
@@ -102,6 +102,8 @@ func (c command) inbox(args []string) error {
 			return err
 		}
 		return c.json(review)
+	case "suggest":
+		return c.inboxSuggest(store, args[1:])
 	case "handoff":
 		return c.inboxHandoff(store, args[1:])
 	case "proposals":

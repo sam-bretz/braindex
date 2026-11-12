@@ -20,6 +20,7 @@ const usage = `Usage: braindex [--library PATH] COMMAND
 
 Commands:
   version                           Show the build version
+  demo                              Try two cited brains with synthetic sources
   status                            Check library and search index health
   init [PATH]                       Initialize a library
   brain create ID [--name NAME]      Create a brain
@@ -36,9 +37,10 @@ Commands:
   rule set|list|access              Manage topic routing and access
   backup status                     Report missing or external originals
   index rebuild|embed               Rebuild keyword and optional local embedding indexes
-  context QUESTION [--explain]      Retrieve cited passages
+  context QUESTION [--explain] [--compare-ranker]  Retrieve cited passages
   capture note|file|url VALUE       Save material for later review
   inbox review|handoff|proposals|batch  Review and place captured material
+  inbox suggest ID... --model MODEL  Preview local destination suggestions
   package export|validate|install|preview|compare|upgrade  Manage brain packages
   catalog list|install              Discover pinned hosted packages
   mcp serve                         Serve read-only context over MCP
@@ -91,6 +93,8 @@ func Run(args []string, in io.Reader, out, errOut io.Writer) int {
 
 func (c command) run(name string, args []string) error {
 	switch name {
+	case "demo":
+		return c.demo(args)
 	case "init":
 		root := c.root
 		switch len(args) {

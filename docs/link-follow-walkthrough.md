@@ -47,12 +47,14 @@ about investor introductions returned a cited passage at
 go test ./internal/cli -run '^TestLinkFollowFromSeriesToSelectedCitations$' -count=1
 ```
 
-## Import a PDF link
+## Save a PDF link
 
-A PDF preview identifies the document and waits for selection before extracting
-text. Choose a brain to index a trusted text PDF, or route its URL to the inbox
-for review. The link downloader caps the transfer at 24 MiB. The PDF parser
-does not separately cap expanded streams.
+A PDF preview identifies the document. Choose a brain or the inbox to save
+its URL as a reference. Braindex does not run the PDF parser on a remote link.
+To extract page-cited text from a trusted local file, use
+`braindex source add document.pdf --brain ID` and rebuild the index.
+Local extraction limits file size, page count, and cumulative extracted text.
+The parser can still expand internal streams before those limits take effect.
 
 ## Follow a feed or author
 

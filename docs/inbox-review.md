@@ -14,6 +14,30 @@ Run `braindex inbox review` at a terminal. Braindex shows each unresolved item, 
 
 Type `yes` when the terminal displays the action you chose. `braindex inbox review ID` remains available for inspecting a single item as JSON.
 
+## Suggest a destination with a local model
+
+Choose the inbox IDs you want to check and an embedding model already installed
+in your loopback Ollama. Use descriptive brain names and curated sources so
+the model has examples of what each brain covers.
+
+```sh
+braindex inbox list
+braindex inbox suggest ID1 ID2 --model nomic-embed-text
+braindex inbox review
+```
+
+The command prints JSON. A suggestion includes an existing brain ID, similarity
+score, and reason. It abstains when the match is weak or too close to a second
+candidate. Suggestions are a read-only preview. To use one, choose
+`move BRAIN` in the review and confirm the placement yourself.
+
+A run accepts up to 20 selected notes and reads up to 4 KiB from each. Results
+mark notes that were truncated. URLs and file captures remain available for
+manual review. Braindex compares note text with the names and up to two
+curated examples per eligible brain. It excludes denied brains and sources
+shared with them. Scores are cosine similarities. The command uses only the installed loopback model. Run Ollama
+with [cloud features disabled](https://docs.ollama.com/faq#how-do-i-disable-ollamas-cloud-features).
+
 ## Hand selected items to an agent
 
 List your inbox, then choose which items to prepare. The first command emits the selected item IDs, kinds, capture times, and existing brain IDs. The second includes content or the captured attachment path. Both run locally.

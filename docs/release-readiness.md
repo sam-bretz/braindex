@@ -50,3 +50,35 @@ The combined Go coverage run exercised 65.1% of statements. Connector error path
 1. Run the workflow in the intended private GitHub repository. Verify tagged `go install`, release downloads, and the collaborator reporting path. GitHub private vulnerability reporting applies once the repository is public. Locally, all four targets built and the extracted macOS arm64 binary passed the smoke test.
 2. Finish the Gmail pilot after the owner configures a Desktop OAuth client and selects a label. Keep live connector credentials out of the release validation workflow.
 3. For a later marketplace rollout, verify publisher identity, support in-place package upgrades, and establish moderation and download withdrawal procedures. The current catalog is an installable static pilot.
+
+## Public-launch preparation
+
+A read-only check covered 150 unique Git history blobs and all 18 Actions logs
+listed for the private repository at the time of review. It checked tracked
+and launch candidate paths for private libraries and credential filenames and
+scanned text for common private key and provider token formats. The scan
+reported zero matches. This check does not detect all secrets or establish
+redistribution rights.
+
+Downloaded RC1 and RC2 each had four archives and a SHA-256 manifest. All
+eight archive checksums matched. The corresponding Actions artifacts contained
+byte-identical archives. Tar contents were limited to the executable,
+README, project license, and third-party notices. Only synthetic sources are
+compiled into the standalone demo.
+
+The public PDF link path now saves references and avoids invoking the PDF
+parser. Explicit trusted local import retains page citations and applies file,
+page, and extracted-text bounds. The dependency still has no hard
+decoded-stream or per-page CPU cap. See [Security](../SECURITY.md).
+
+The repository remains private. Its private vulnerability reporting form
+cannot be verified as an outside reporter until the public transition. Use the
+[public release procedure](releasing.md#prepare-the-public-release) to verify
+reporting and anonymous downloads when publication is authorized.
+
+The local RC3 build produced four verified checksums. The extracted ARM64
+binaries passed the standalone demo on macOS and in a fresh Ubuntu VM. Both
+ran from empty directories with a clean environment and no tools on PATH.
+The Linux run additionally used an isolated network namespace. The amd64
+archives were cross-built and checked by hash. The candidate is available in
+`dist/` from the preparation checkout.

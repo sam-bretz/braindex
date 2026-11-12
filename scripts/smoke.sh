@@ -6,6 +6,20 @@ repo=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 temp=$(mktemp -d)
 trap 'rm -rf "$temp"' EXIT
 library=$temp/library
+binary_dir=$(CDPATH='' cd -- "$(dirname -- "$binary")" && pwd)
+binary="$binary_dir/$(basename -- "$binary")"
+
+# A release user can try the binary from an empty directory without a checkout,
+# configured library, network-dependent model, or commands on PATH.
+mkdir "$temp/demo"
+(
+  cd "$temp/demo"
+  env -i HOME="$temp/demo" TMPDIR="$temp/demo" PATH=/nonexistent "$binary" demo > "$temp/demo.txt"
+)
+grep -Fq '[buying-climate] Buying Climate Brief, line 1' "$temp/demo.txt"
+grep -Fq '[field-notes] Discovery Field Notes, line 1' "$temp/demo.txt"
+grep -Fq 'Reopened source: Buying Climate Brief, line 1' "$temp/demo.txt"
+test -z "$(ls -A "$temp/demo")"
 
 "$binary" --library "$library" init >/dev/null
 "$binary" --library "$library" brain create founder-sales >/dev/null

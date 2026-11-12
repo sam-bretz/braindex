@@ -82,7 +82,9 @@
         "sales": {"source": "buyer-approval", "locator": "section 2"},
         "markets": {"source": "credit-tightening", "locator": "page 4"}
       },
-      "vector": [1, 0, 0, 0]
+      "vector": [1, 0, 0, 0],
+      "max_hybrid_irrelevant": 4,
+      "max_hybrid_extra_brains": 1
     },
     {
       "id": "evaluation-and-rollout",
@@ -92,7 +94,8 @@
         "evals": {"source": "reviewer-agreement", "locator": "line 4"},
         "operations": {"source": "rollout-guardrail", "locator": "step 3"}
       },
-      "vector": [0, 1, 0, 0]
+      "vector": [0, 1, 0, 0],
+      "max_hybrid_irrelevant": 2
     },
     {
       "id": "unrelated",

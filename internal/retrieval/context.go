@@ -22,21 +22,23 @@ const (
 )
 
 type Request struct {
-	Query     string
-	Topic     string
-	Brains    []string
-	Limit     int
-	AllBrains bool
-	Mode      string
+	Query         string
+	Topic         string
+	Brains        []string
+	Limit         int
+	AllBrains     bool
+	Mode          string
+	CompareRanker bool
 }
 
 type Result struct {
-	Retrieval       string        `json:"retrieval,omitempty"`
-	EmbeddingStatus string        `json:"embedding_status,omitempty"`
-	Status          string        `json:"status"`
-	Topics          []string      `json:"topics"`
-	Routing         Routing       `json:"routing"`
-	Brains          []BrainResult `json:"brains"`
+	Retrieval        string            `json:"retrieval,omitempty"`
+	EmbeddingStatus  string            `json:"embedding_status,omitempty"`
+	Status           string            `json:"status"`
+	Topics           []string          `json:"topics"`
+	Routing          Routing           `json:"routing"`
+	Brains           []BrainResult     `json:"brains"`
+	RankerComparison *RankerComparison `json:"ranker_comparison,omitempty"`
 }
 
 type Routing struct {
@@ -123,7 +125,7 @@ func ContextWithContext(ctx context.Context, store *library.Store, request Reque
 		}
 	}
 	if len(selected) == 0 && !request.AllBrains {
-		return result, nil
+		return withRankerComparison(result, request, nil), nil
 	}
 	result.Status = "matched"
 	result.Retrieval = "keyword"
@@ -149,7 +151,7 @@ func ContextWithContext(ctx context.Context, store *library.Store, request Reque
 
 	if len(selected) == 0 {
 		result.Status, result.Retrieval = "unmatched", ""
-		return result, nil
+		return withRankerComparison(result, request, nil), nil
 	}
 	var searchIndex *index.Index
 	var semantic *index.SemanticIndex
@@ -260,7 +262,7 @@ func ContextWithContext(ctx context.Context, store *library.Store, request Reque
 		}
 		result.Brains = append(result.Brains, outcome)
 	}
-	return result, nil
+	return withRankerComparison(result, request, semantic), nil
 }
 
 // rankKeywordEvidence favors coverage of distinct query terms, retaining

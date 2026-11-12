@@ -87,3 +87,44 @@ func TestLinkSingleVideoKeepsKnownTitle(t *testing.T) {
 		t.Fatalf("saved source = %+v, %v", source, err)
 	}
 }
+
+func TestLinkPDFSavesReferenceAndKeepsPriorText(t *testing.T) {
+	store, err := library.Init(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CreateBrain(library.Brain{ID: "research"}); err != nil {
+		t.Fatal(err)
+	}
+	const address = "https://example.org/paper.pdf"
+	const id = "web-paper"
+	reference := library.Source{ID: id, URL: address, Title: "paper.pdf", MIME: "application/pdf", Status: "unavailable"}
+	probe := func(context.Context, string, int) (connectors.LinkPreview, error) {
+		return connectors.LinkPreview{Kind: "pdf", URL: address, Sources: []library.Source{reference}}, nil
+	}
+	save := func() library.Source {
+		t.Helper()
+		var out bytes.Buffer
+		if err := (command{root: store.Root, out: &out}).linkUsing([]string{address, "--brain", "research", "--select", id}, probe); err != nil {
+			t.Fatal(err)
+		}
+		saved, err := store.Source(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return saved
+	}
+	if got := save(); got.Status != "unavailable" || got.URL != address || len(got.Passages) != 0 {
+		t.Fatalf("saved PDF should be a reference: %+v", got)
+	}
+	imported := reference
+	imported.Status = "ready"
+	imported.Passages = []library.Passage{{Text: "Previously imported evidence.", Locator: "page 1, line 1"}}
+	imported, err = store.PutSource(imported, []string{"research"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := save(); got.Status != "ready" || got.Revision != imported.Revision || len(got.Passages) != 1 {
+		t.Fatalf("saving a reference replaced existing PDF text: %+v", got)
+	}
+}

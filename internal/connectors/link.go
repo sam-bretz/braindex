@@ -1,6 +1,7 @@
 package connectors
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -22,7 +23,6 @@ import (
 type LinkPreview struct {
 	Kind, URL, Detail string
 	Sources           []library.Source
-	pdfData           []byte
 }
 
 func PreviewLink(ctx context.Context, address string, limit int, youtube YouTubeExtractor, apiKey string) (LinkPreview, error) {
@@ -89,31 +89,30 @@ func previewHTTPLink(ctx context.Context, client *http.Client, address *url.URL,
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return referencePreview(address, fmt.Sprintf("The link returned HTTP %d.", response.StatusCode))
 	}
+	kind, _, _ := mime.ParseMediaType(response.Header.Get("Content-Type"))
+	final := response.Request.URL
+	if kind == "application/pdf" {
+		return pdfReferencePreview(final)
+	}
 	const maxLinkBytes = 24 << 20
 	if response.ContentLength > maxLinkBytes {
 		return referencePreview(address, "The response exceeds 24 MiB.")
 	}
-	data, err := io.ReadAll(io.LimitReader(response.Body, maxLinkBytes+1))
+	body := bufio.NewReaderSize(response.Body, 512)
+	if header, _ := body.Peek(len("%PDF-")); bytes.Equal(header, []byte("%PDF-")) {
+		return pdfReferencePreview(final)
+	}
+	data, err := io.ReadAll(io.LimitReader(body, maxLinkBytes+1))
 	if err != nil || len(data) > maxLinkBytes {
 		return referencePreview(address, "The response could not be read within the 24 MiB limit.")
 	}
-	kind, _, _ := mime.ParseMediaType(response.Header.Get("Content-Type"))
 	sniffed := ""
 	if kind == "" || kind == "application/octet-stream" {
 		sniffed = http.DetectContentType(data)
 	}
-	final := response.Request.URL
 	preview := LinkPreview{URL: final.String()}
 	var source library.Source
 	switch {
-	case kind == "application/pdf" || bytes.HasPrefix(data, []byte("%PDF-")):
-		preview.Kind, preview.Detail = "pdf", "Selected PDFs are checked for text after confirmation. A scan can be saved as a reference."
-		preview.pdfData = data
-		preview.Sources = []library.Source{{
-			ID: ingest.StableID("web", final.String()), URL: final.String(), Title: path.Base(final.Path),
-			MIME: "application/pdf", Status: "needs_extraction",
-		}}
-		return preview
 	case strings.Contains(kind, "xml") || strings.HasPrefix(sniffed, "text/xml"):
 		entries, err := decodeFeed(data)
 		if err != nil {
@@ -147,20 +146,17 @@ func previewHTTPLink(ctx context.Context, client *http.Client, address *url.URL,
 	return preview
 }
 
-// SelectedSource resolves text for an explicitly selected PDF. Reference-only
-// staging does not invoke the PDF parser.
-func (preview LinkPreview) SelectedSource(index int) (library.Source, error) {
-	source := preview.Sources[index]
-	if preview.Kind != "pdf" || source.Status != "needs_extraction" {
-		return source, nil
+// Public PDFs are references. The local parser can expand compressed streams
+// before extracted-text limits take effect.
+func pdfReferencePreview(address *url.URL) LinkPreview {
+	return LinkPreview{
+		Kind: "pdf", URL: address.String(),
+		Detail: "PDFs from links are saved as references. Use source add with a trusted local PDF to extract text.",
+		Sources: []library.Source{{
+			ID: ingest.StableID("web", address.String()), URL: address.String(), Title: path.Base(address.Path),
+			MIME: "application/pdf", Status: "unavailable",
+		}},
 	}
-	passages, err := ingest.PDFPassages(preview.pdfData)
-	if err != nil || len(passages) == 0 {
-		source.Status = "unavailable"
-		return source, errors.New("the PDF did not yield text; saving the link")
-	}
-	source.Passages, source.Status = passages, "ready"
-	return source, nil
 }
 
 func referencePreview(address *url.URL, detail string) LinkPreview {
