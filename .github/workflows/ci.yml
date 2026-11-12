@@ -32,6 +32,7 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: ${{ matrix.go }}
+          check-latest: true
       - run: go mod verify
       - name: Check formatting
         run: test -z "$(git ls-files '*.go' | xargs gofmt -l)"
@@ -55,6 +56,7 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: '1.27.x'
+          check-latest: true
       - name: Build candidate archives
         env:
           BRAINDEX_RELEASE_VERSION: ${{ inputs.version }}
