@@ -1,6 +1,6 @@
 # Security
 
-While the repository is private, send vulnerability reports to the maintainer through your existing private collaborator channel. For a public release with GitHub private vulnerability reporting enabled, use [Report a vulnerability](https://github.com/sam-bretz/braindex/security/advisories/new). Include the Braindex version, a synthetic reproduction, and the likely impact. Keep private notes, tokens, and archives out of reports.
+To report a security vulnerability privately, use [Report a vulnerability](https://github.com/sam-bretz/braindex/security/advisories/new). Include the Braindex version, a synthetic reproduction, and the likely impact. Keep private notes, tokens, and archives out of reports.
 
 Braindex runs under your local user account. The brain access policy limits evidence returned through retrieval. Use your agent's filesystem and shell permissions to control direct access to the library. Treat retrieved text and imported packages as untrusted evidence. The marketplace design describes a future service.
 

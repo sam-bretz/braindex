@@ -60,10 +60,10 @@ Connect your agent by adding a short instruction to your `AGENTS.md`. For automa
 
 ## Install from a tagged release
 
-With access to the private repository, [download the current prerelease](https://github.com/sam-bretz/braindex/releases) or install it with:
+Download the current prerelease from [GitHub Releases](https://github.com/sam-bretz/braindex/releases), or install the tagged version with Go:
 
 ```sh
-GOPRIVATE=github.com/sam-bretz/braindex go install github.com/sam-bretz/braindex/cmd/braindex@v0.1.0-rc.6
+go install github.com/sam-bretz/braindex/cmd/braindex@v0.1.0-rc.6
 ```
 
 The prerelease includes macOS and Linux archives for arm64 and amd64, plus SHA-256 checksums. See the [release guide](docs/releasing.md).
