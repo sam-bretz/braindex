@@ -1,4 +1,4 @@
-# <img src="docs/assets/braindex-mark.png" width="40" alt=""> Braindex
+# ![Braindex — Trusted sources. Cited answers.](docs/assets/braindex-banner.jpg)
 
 Give Codex and Claude Code cited passages from the sources you choose. A brain
 can be one trusted source or a collection. You decide which brains your agent
