@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.0-rc.5
+
+- Add a standalone `braindex demo` that retrieves two independently cited passages and reopens a source revision.
+- Add deterministic and local-model evals, opt-in ranker comparison, and local inbox destination suggestions.
+- Save public PDF links as references and apply page and extracted-text limits to trusted local PDF imports.
+
 ## v0.1.0-rc.2
 
 - Preview a link and route selected articles, PDFs, feed items, or videos to a brain or the inbox.

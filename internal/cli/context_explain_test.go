@@ -61,4 +61,45 @@ func TestContextExplainKeepsStructuredOutput(t *testing.T) {
 		!strings.Contains(text, `"sales title", "line 1" (revision`) {
 		t.Fatalf("unexpected explanation: %s", text)
 	}
+
+	if result.RankerComparison != nil || strings.Contains(basic, "ranker_comparison") {
+		t.Fatalf("default output included comparison: %s", basic)
+	}
+	compared := run("--mode", "keyword", "--compare-ranker")
+	if err := json.Unmarshal([]byte(compared), &result); err != nil || result.RankerComparison == nil ||
+		result.RankerComparison.Status != "unavailable" || result.RankerComparison.Reason != "keyword_mode" ||
+		strings.Contains(compared, "private title") {
+		t.Fatalf("unexpected comparison JSON: %s (%v)", compared, err)
+	}
+	if text := run("--mode", "keyword", "--compare-ranker", "--explain"); !strings.Contains(text, "Ranker comparison unavailable (keyword_mode).") ||
+		!strings.Contains(text, "sales title") || strings.Contains(text, "private title") {
+		t.Fatalf("unexpected unavailable comparison text: %s", text)
+	}
+}
+
+func TestContextExplainShowsKeptAndOmittedCitations(t *testing.T) {
+	kept := retrieval.Excerpt{SourceID: "first", Title: "First source", Locator: "line 1", Revision: "rev1"}
+	omitted := retrieval.Excerpt{SourceID: "second", Title: "Second source", Locator: "line 2", Revision: "rev2"}
+	result := retrieval.Result{
+		Brains: []retrieval.BrainResult{{ID: "sales", Status: "hits", Searched: true, Excerpts: []retrieval.Excerpt{omitted, kept}}},
+		RankerComparison: &retrieval.RankerComparison{
+			Status: "compared", Model: "nomic-embed-text:latest", MinimumCosine: 0.6703,
+			Brains: []retrieval.RankerBrainComparison{{ID: "sales", Status: "hits", Excerpts: []retrieval.Excerpt{kept}, Removed: 1}},
+		},
+	}
+	var out bytes.Buffer
+	if err := (command{out: &out}).explainContext(result); err != nil {
+		t.Fatal(err)
+	}
+	text := out.String()
+	for _, want := range []string{
+		"Ranker comparison (nomic-embed-text:latest, minimum cosine 0.6703)",
+		"kept 1, omitted 1",
+		`kept "First source", "line 1" (revision rev1)`,
+		`omitted "Second source", "line 2" (revision rev2)`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("missing %q from comparison:\n%s", want, text)
+		}
+	}
 }

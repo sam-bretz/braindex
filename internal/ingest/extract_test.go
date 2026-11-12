@@ -145,3 +145,25 @@ func TestCorruptPDFStreamReturnsAnError(t *testing.T) {
 		t.Fatal("accepted an invalid PDF stream length")
 	}
 }
+
+func TestPDFExtractionLimits(t *testing.T) {
+	data, err := os.ReadFile("testdata/two-pages.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	normal, err := readPDFPassages(data, 2, 1024)
+	if err != nil || len(normal) != 2 {
+		t.Fatalf("PDF within limits = %+v, %v", normal, err)
+	}
+	if passages, err := readPDFPassages(data, 1, 1024); err == nil || !strings.Contains(err.Error(), "exceeds 1 pages") || passages != nil {
+		t.Fatalf("expected page limit, got %+v, %v", passages, err)
+	}
+	if passages, err := readPDFPassages(data, 2, len(normal[0].Text)); err == nil ||
+		!strings.Contains(err.Error(), "extracted text exceeds") || passages != nil {
+		t.Fatalf("expected cumulative text limit without partial output, got %+v, %v", passages, err)
+	}
+	if passages, err := PDFPassages(make([]byte, maxSourceBytes+1)); err == nil ||
+		!strings.Contains(err.Error(), "exceeds 64 MiB") || passages != nil {
+		t.Fatalf("expected input limit, got %+v, %v", passages, err)
+	}
+}

@@ -50,7 +50,7 @@ for target in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64; do
   GOOS=$os GOARCH=$arch go build -trimpath -buildvcs=false \
     -ldflags "-s -w -X $module/internal/cli.buildVersion=$version" \
     -o "$stage/braindex" ./cmd/braindex
-  COPYFILE_DISABLE=1 tar -czf "$work/$name.tar.gz" -C "$stage" braindex LICENSE README.md third-party
+  COPYFILE_DISABLE=1 tar --no-xattrs --no-acls -czf "$work/$name.tar.gz" -C "$stage" braindex LICENSE README.md third-party
 done
 
 if command -v sha256sum >/dev/null 2>&1; then

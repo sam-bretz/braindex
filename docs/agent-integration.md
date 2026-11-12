@@ -33,6 +33,11 @@ all-brains searches, and unmatched questions. A brain marked `searched`
 was queried. A denied or unavailable brain was skipped. A brain can be
 searched and still have `no_relevant_passages`.
 
+To review the experimental local passage ranker, run
+`braindex context "<question>" --compare-ranker --explain` yourself. Your
+usual agent instructions continue to use the baseline. See the
+[comparison workflow](evals.md#compare-the-ranker-on-your-own-questions).
+
 For inbox review, ask the agent to use `braindex inbox show ID` and `braindex inbox show ID --content` on selected items. For a file, the content command returns the stored file path. The agent can save a proposal with `braindex inbox propose ID` and one JSON object on stdin. Supply `digest` and `rationale`, plus `brains`, `new_brain`, or `leave_out`. This action may send the selected material to the agent's configured model provider. Review and approve the placement yourself.
 
 ## Optional Codex prompt hook
@@ -73,6 +78,26 @@ using synthetic sources.
 ```sh
 go test ./internal/mcp ./internal/hook -count=1
 ```
+
+## CLI-first pilot
+
+The private RC2 pilot ran the downloaded binary in fresh, authenticated Codex
+and Claude Code sessions. Each project listed founder-led sales discovery and
+budget tightening as curated topics. The two-brain prompt was:
+
+> How should I run founder-led sales discovery when budget tightening is slowing purchases?
+
+Both agents invoked `braindex context` through their shell tool and quoted
+**Discovery Field Notes, line 1** and **Buying Climate Brief, line 1** separately,
+with exact revisions. Both separated their synthesis and answered the unrelated
+Go arrays versus slices question without calling Braindex after the project
+topics were scoped. The material was synthetic. Braindex's MCP tool and prompt
+hook were unnecessary for these sessions.
+
+Run `braindex demo` to reproduce the underlying local selection, citations,
+and source reopening without an agent or model. An authenticated agent session
+adds the separate check that the host follows the project instructions on an
+ordinary question. [RC2 build and checks](https://github.com/sam-bretz/braindex/actions/runs/42451893685)
 
 ## Verify a citation in Codex
 
