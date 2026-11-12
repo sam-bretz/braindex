@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.0-rc.6
+
+- Retry Homebrew release draft discovery and use current Go patches in CI.
+
 ## v0.1.0-rc.5
 
 - Add a standalone `braindex demo` that retrieves two independently cited passages and reopens a source revision.
