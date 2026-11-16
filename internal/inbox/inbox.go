@@ -39,6 +39,7 @@ type Item struct {
 	Proposal   *Proposal `json:"proposal,omitempty"`
 	Brains     []string  `json:"brains,omitempty"`
 	SourceID   string    `json:"source_id,omitempty"`
+	NewBrain   string    `json:"approval_new_brain,omitempty"`
 }
 
 func dir(store *library.Store) string { return filepath.Join(store.MetaDir(), "inbox") }
@@ -206,27 +207,39 @@ func Disposition(store *library.Store, id, status string) (Item, error) {
 // Approve imports the original via the supplied callback after the CLI obtains
 // confirmation. The callback must be safe to retry if saving the receipt fails.
 func Approve(store *library.Store, id string, brains []string, promote func(Item) (string, error)) (Item, error) {
+	return ApprovePlacement(store, id, brains, "", promote)
+}
+
+// ApprovePlacement records the requested new brain before promotion so review
+// can resume even when an interruption occurs before that brain is created.
+func ApprovePlacement(store *library.Store, id string, brains []string, newBrain string, promote func(Item) (string, error)) (Item, error) {
 	return change(store, id, func(item *Item) error {
 		switch item.Status {
 		case "approved":
+			recorded, requested := slices.Clone(item.Brains), slices.Clone(brains)
+			slices.Sort(recorded)
+			slices.Sort(requested)
+			if !slices.Equal(recorded, requested) {
+				return errors.New("item was approved for different destinations")
+			}
 			return nil
 		case "dismissed":
 			return errors.New("item is dismissed")
 		case "approving":
-			if !slices.Equal(item.Brains, brains) {
+			if !slices.Equal(item.Brains, brains) || (item.NewBrain != "" && item.NewBrain != newBrain) {
 				return errors.New("approval was interrupted; retry with the recorded destinations")
 			}
-		default:
-			item.Status, item.Brains = "approving", brains
-			if err := save(filepath.Join(dir(store), id), *item); err != nil {
-				return err
-			}
+		}
+		item.Status, item.Brains, item.NewBrain = "approving", brains, newBrain
+		if err := save(filepath.Join(dir(store), id), *item); err != nil {
+			return err
 		}
 		sourceID, err := promote(*item)
 		if err != nil {
 			return err
 		}
 		item.Status, item.SourceID, item.Brains = "approved", sourceID, brains
+		item.NewBrain = ""
 		return nil
 	})
 }

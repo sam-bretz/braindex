@@ -90,6 +90,11 @@ func SetBrainAccess(store *library.Store, brainID string, allowed bool) error {
 	return writeJSON(configPath(store, "access", brainID), brainAccess{Allowed: &allowed})
 }
 
+// BrainAllowed applies the same local access policy as context retrieval.
+func BrainAllowed(store *library.Store, brainID string) (bool, error) {
+	return allowed(store, brainID)
+}
+
 func allowed(store *library.Store, brainID string) (bool, error) {
 	if library.ValidateID(brainID) != nil {
 		return false, fmt.Errorf("invalid brain ID %q", brainID)

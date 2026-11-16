@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"time"
@@ -16,8 +17,16 @@ func (c command) discover(args []string) error {
 	if len(args) == 0 {
 		return errors.New("usage: braindex discover web|rss|podcast|youtube URL --brain ID [--create-brain]")
 	}
+	if args[0] == "person" {
+		return c.discoverPerson(args[1:])
+	}
 	flags := newFlags("discover " + args[0])
 	create := flags.Bool("create-brain", false, "create the destination brain when missing")
+	useYTDLP, videoLimit := false, 50
+	if args[0] == "youtube" {
+		flags.BoolVar(&useYTDLP, "yt-dlp", false, "use the optional yt-dlp adapter")
+		flags.IntVar(&videoLimit, "limit", videoLimit, "maximum videos when using yt-dlp")
+	}
 	var brains stringsFlag
 	flags.Var(&brains, "brain", "destination brain ID")
 	pos, err := parse(flags, args[1:])
@@ -26,6 +35,15 @@ func (c command) discover(args []string) error {
 	}
 	if len(pos) != 1 || len(brains) == 0 {
 		return errors.New("usage: braindex discover web|rss|podcast|youtube URL --brain ID [--create-brain]")
+	}
+	if args[0] == "youtube" && !useYTDLP {
+		var limitSet bool
+		flags.Visit(func(option *flag.Flag) {
+			limitSet = limitSet || option.Name == "limit"
+		})
+		if limitSet {
+			return errors.New("discover youtube --limit requires --yt-dlp")
+		}
 	}
 	store, err := library.Open(c.root)
 	if err != nil {
@@ -52,7 +70,11 @@ func (c command) discover(args []string) error {
 	case "podcast":
 		sources, err = connectors.FetchPodcast(ctx, pos[0])
 	case "youtube":
-		sources, err = connectors.FetchYouTubePlaylist(ctx, pos[0], os.Getenv("BRAINDEX_YOUTUBE_API_KEY"))
+		if useYTDLP {
+			sources, err = youtubeExtractor().Discover(ctx, pos[0], videoLimit)
+		} else {
+			sources, err = connectors.FetchYouTubePlaylist(ctx, pos[0], os.Getenv("BRAINDEX_YOUTUBE_API_KEY"))
+		}
 	default:
 		return fmt.Errorf("unknown discovery connector %q", args[0])
 	}
@@ -68,19 +90,7 @@ func (c command) discover(args []string) error {
 	}
 	var saved []library.Source
 	for _, source := range sources {
-		if source.ID != "" {
-			old, lookupErr := store.Source(source.ID)
-			if lookupErr != nil && !errors.Is(lookupErr, library.ErrNotFound) {
-				return lookupErr
-			}
-			if lookupErr == nil {
-				source.Redistribution = old.Redistribution
-				if (args[0] == "podcast" || args[0] == "youtube") && len(source.Passages) == 0 && len(old.Passages) > 0 {
-					source.Path, source.Status, source.Passages = old.Path, old.Status, old.Passages
-				}
-			}
-		}
-		record, saveErr := store.PutSource(source, brains)
+		record, saveErr := store.PutDiscoveredSource(source, brains, args[0] == "podcast" || args[0] == "youtube")
 		if saveErr != nil {
 			return saveErr
 		}

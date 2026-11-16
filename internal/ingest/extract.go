@@ -13,7 +13,11 @@ import (
 	"github.com/sam-bretz/braindex/internal/library"
 )
 
-const maxSourceBytes = 64 << 20
+const (
+	maxSourceBytes  = 64 << 20
+	maxPDFPages     = 2000
+	maxPDFTextBytes = 16 << 20
+)
 
 // Extract reads a supported local file and preserves passage locations.
 func Extract(path string) (library.Source, error) {
@@ -49,7 +53,7 @@ func Extract(path string) (library.Source, error) {
 		}
 		source.Passages = LinePassages(strings.TrimPrefix(string(data), "\uFEFF"))
 	case ".pdf":
-		source.Passages, err = pdfPassages(data)
+		source.Passages, err = PDFPassages(data)
 	case ".eml":
 		source, err = ExtractEmail(data, path)
 	case ".vtt", ".srt":
@@ -114,16 +118,39 @@ func lineLocator(start, end int) string {
 	return fmt.Sprintf("lines %d-%d", start, end)
 }
 
-func pdfPassages(data []byte) ([]library.Passage, error) {
+// PDFPassages extracts page-aware text from a trusted local PDF. Its input and
+// output limits do not bound the PDF parser's internal stream decoding.
+func PDFPassages(data []byte) ([]library.Passage, error) {
+	if len(data) > maxSourceBytes {
+		return nil, fmt.Errorf("PDF exceeds %d MiB", maxSourceBytes>>20)
+	}
+	return readPDFPassages(data, maxPDFPages, maxPDFTextBytes)
+}
+
+func readPDFPassages(data []byte, maxPages, maxTextBytes int) (passages []library.Passage, err error) {
+	// The parser can panic on corrupt stream offsets in untrusted documents.
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			passages, err = nil, fmt.Errorf("invalid PDF data: %v", recovered)
+		}
+	}()
 	document, err := pdf.OpenBytes(data)
 	if err != nil {
 		return nil, fmt.Errorf("open PDF: %w", err)
 	}
-	var passages []library.Passage
-	for i := 0; i < document.NumPages(); i++ {
+	pages := document.NumPages()
+	if pages > maxPages {
+		return nil, fmt.Errorf("PDF exceeds %d pages", maxPages)
+	}
+	textBytes := 0
+	for i := 0; i < pages; i++ {
 		text, err := document.Page(i).Text()
 		if err != nil {
 			return nil, fmt.Errorf("extract PDF page %d: %w", i+1, err)
+		}
+		textBytes += len(text)
+		if textBytes > maxTextBytes {
+			return nil, fmt.Errorf("PDF extracted text exceeds %d bytes", maxTextBytes)
 		}
 		for _, chunk := range LinePassages(text) {
 			chunk.Locator = fmt.Sprintf("page %d, %s", i+1, chunk.Locator)

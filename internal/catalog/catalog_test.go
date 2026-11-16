@@ -188,3 +188,16 @@ func checksum(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
 }
+
+func TestPinnedCatalogPreview(t *testing.T) {
+	data := zipFixture(t, "1.0.0")
+	server := fixtureServer(t, data, checksum(data), new(atomic.Int32))
+	candidate, err := Load(t.Context(), server.URL, "sales", "1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	preview := candidate.Preview()
+	if preview.ArchiveDigest != checksum(data) || len(preview.Digest) != 64 || preview.Version != "1.0.0" || preview.PublisherVerification != "unverified" || len(preview.Sources) != 1 {
+		t.Fatalf("catalog preview: %+v", preview)
+	}
+}

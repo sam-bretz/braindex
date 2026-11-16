@@ -27,6 +27,32 @@ An installation records the package version, origin, and manifest digest in the 
 
 The manifest schema documents the JSON shape. The Go validator also checks URL safety, source ID uniqueness, file names, checksums, and size limits.
 
+## Preview before installation
+
+Use the same preview for a local export, a version tag in a Git repository, or a pinned catalog entry.
+
+```sh
+braindex package preview ./sales-package
+braindex package preview https://example.org/sales.git --git --version 1.0.0
+braindex package preview https://example.org/catalog.json --catalog sales --version 1.0.0 --json
+```
+
+The preview shows the exact package version, manifest SHA-256, and which sources contain bundled searchable text. Git previews include the resolved commit. Catalog previews include the verified archive SHA-256. Publisher names are declared attribution. A valid digest verifies bytes, while publisher identity remains unverified.
+
+## Compare and upgrade
+
+Compare the candidate with an installed brain before applying an update.
+
+```sh
+braindex package compare installed-sales https://example.org/sales.git --git --version 1.1.0
+braindex package upgrade installed-sales https://example.org/sales.git --git --version 1.1.0 --confirm MANIFEST_SHA256
+braindex index rebuild
+```
+
+Replace `MANIFEST_SHA256` with the value shown by preview or compare. Both commands support `--json`, and both also work with the local and catalog forms above. A local upgrade uses the same directory as the original install, with the candidate version placed there. An upgrade preserves user-added sources, topic rules, access settings, and historical source revisions. If a package-owned source has a local edit, comparison identifies it and the upgrade stops before changing the receipt or brain. The previous version and the local edits remain available for review.
+
+Older receipts may need the original package to recover package ownership. For Git and catalogs, Braindex tries the installed version at the same origin and verifies its manifest against the receipt. If that version is unavailable, supply a validated copy with `--baseline DIRECTORY`. Local upgrades from older receipts also use `--baseline DIRECTORY`.
+
 ## Static catalog pilot
 
 A catalog serves a versioned JSON index and ZIP archives from one HTTPS origin. A publisher name is an attribution label supplied by the catalog operator. The pilot verifies the catalog TLS connection, archive SHA-256, and identity fields in the package manifest. Publisher verification and signing are future work.

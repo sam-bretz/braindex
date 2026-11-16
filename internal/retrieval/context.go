@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -21,25 +22,35 @@ const (
 )
 
 type Request struct {
-	Query     string
-	Topic     string
-	Brains    []string
-	Limit     int
-	AllBrains bool
-	Mode      string
+	Query         string
+	Topic         string
+	Brains        []string
+	Limit         int
+	AllBrains     bool
+	Mode          string
+	CompareRanker bool
 }
 
 type Result struct {
-	Retrieval       string        `json:"retrieval,omitempty"`
-	EmbeddingStatus string        `json:"embedding_status,omitempty"`
-	Status          string        `json:"status"`
-	Topics          []string      `json:"topics"`
-	Brains          []BrainResult `json:"brains"`
+	Retrieval        string            `json:"retrieval,omitempty"`
+	EmbeddingStatus  string            `json:"embedding_status,omitempty"`
+	Status           string            `json:"status"`
+	Topics           []string          `json:"topics"`
+	Routing          Routing           `json:"routing"`
+	Brains           []BrainResult     `json:"brains"`
+	RankerComparison *RankerComparison `json:"ranker_comparison,omitempty"`
+}
+
+type Routing struct {
+	Scope string `json:"scope"`
 }
 
 type BrainResult struct {
 	ID                 string    `json:"id"`
 	Status             string    `json:"status"`
+	Searched           bool      `json:"searched"`
+	Explicit           bool      `json:"explicit,omitempty"`
+	SelectedByTopics   []string  `json:"selected_by_topics,omitempty"`
 	Excerpts           []Excerpt `json:"excerpts"`
 	UnavailableSources []string  `json:"unavailable_sources,omitempty"`
 }
@@ -90,8 +101,31 @@ func ContextWithContext(ctx context.Context, store *library.Store, request Reque
 		return Result{}, err
 	}
 	result := Result{Status: "unmatched", Topics: topics, Brains: []BrainResult{}}
+	switch {
+	case request.AllBrains:
+		result.Routing.Scope = "all_brains"
+	case request.Topic != "":
+		result.Routing.Scope = "explicit_topic"
+	case len(request.Brains) > 0:
+		result.Routing.Scope = "explicit_brains"
+	case len(topics) > 0:
+		result.Routing.Scope = "matched_rules"
+	default:
+		result.Routing.Scope = "unmatched"
+	}
+	topicSelections := make(map[string][]string)
+	if !request.AllBrains {
+		for _, rule := range rules {
+			if !slices.Contains(topics, rule.ID) {
+				continue
+			}
+			for _, brainID := range unique(rule.Brains) {
+				topicSelections[brainID] = append(topicSelections[brainID], rule.ID)
+			}
+		}
+	}
 	if len(selected) == 0 && !request.AllBrains {
-		return result, nil
+		return withRankerComparison(result, request, nil), nil
 	}
 	result.Status = "matched"
 	result.Retrieval = "keyword"
@@ -117,12 +151,22 @@ func ContextWithContext(ctx context.Context, store *library.Store, request Reque
 
 	if len(selected) == 0 {
 		result.Status, result.Retrieval = "unmatched", ""
-		return result, nil
+		return withRankerComparison(result, request, nil), nil
 	}
 	var searchIndex *index.Index
 	var semantic *index.SemanticIndex
 	semanticAttempted := false
 	terms := index.Terms(request.Query)
+	// Longer questions that span several brains often contain broad words that
+	// retrieve a passage from an otherwise irrelevant brain. Let each brain
+	// contribute evidence for its part of the question without padding results.
+	var selectiveTerms map[string]bool
+	if len(selected) > 1 && len(terms) >= 8 {
+		selectiveTerms = make(map[string]bool, len(terms))
+		for _, term := range terms {
+			selectiveTerms[term] = true
+		}
+	}
 	for _, id := range selected {
 		brain, exists := brains[id]
 		if !exists {
@@ -132,7 +176,10 @@ func ContextWithContext(ctx context.Context, store *library.Store, request Reque
 		if err != nil {
 			return Result{}, err
 		}
-		outcome := BrainResult{ID: id, Excerpts: []Excerpt{}}
+		outcome := BrainResult{
+			ID: id, Excerpts: []Excerpt{}, Explicit: slices.Contains(request.Brains, id),
+			SelectedByTopics: topicSelections[id],
+		}
 		if !access {
 			outcome.Status = "denied"
 			result.Brains = append(result.Brains, outcome)
@@ -174,7 +221,7 @@ func ContextWithContext(ctx context.Context, store *library.Store, request Reque
 		}
 
 		candidates := request.Limit
-		if semantic != nil {
+		if semantic != nil || len(selectiveTerms) > 0 {
 			candidates *= 3
 		}
 		var keyword []index.Match
@@ -190,6 +237,9 @@ func ContextWithContext(ctx context.Context, store *library.Store, request Reque
 			if err != nil {
 				return Result{}, err
 			}
+			if len(selectiveTerms) > 0 {
+				keyword = rankKeywordEvidence(keyword, selectiveTerms)
+			}
 		}
 		var vectors []index.VectorMatch
 		if semantic != nil {
@@ -198,6 +248,7 @@ func ContextWithContext(ctx context.Context, store *library.Store, request Reque
 				return Result{}, err
 			}
 		}
+		outcome.Searched = true
 		outcome.Status = "no_relevant_passages"
 		for _, match := range combineMatches(keyword, vectors, request.Limit) {
 			outcome.Status = "hits"
@@ -211,7 +262,34 @@ func ContextWithContext(ctx context.Context, store *library.Store, request Reque
 		}
 		result.Brains = append(result.Brains, outcome)
 	}
-	return result, nil
+	return withRankerComparison(result, request, semantic), nil
+}
+
+// rankKeywordEvidence favors coverage of distinct query terms, retaining
+// BM25 order for ties. Semantic candidates independently meet the model cutoff.
+func rankKeywordEvidence(matches []index.Match, queryTerms map[string]bool) []index.Match {
+	type evidence struct {
+		match    index.Match
+		coverage int
+	}
+	ranked := make([]evidence, 0, len(matches))
+	for _, match := range matches {
+		covered := make(map[string]bool)
+		for _, term := range strings.Fields(normalize(match.Text)) {
+			if queryTerms[term] {
+				covered[term] = true
+			}
+		}
+		if len(covered) >= 2 {
+			ranked = append(ranked, evidence{match: match, coverage: len(covered)})
+		}
+	}
+	sort.SliceStable(ranked, func(i, j int) bool { return ranked[i].coverage > ranked[j].coverage })
+	result := matches[:0]
+	for _, item := range ranked {
+		result = append(result, item.match)
+	}
+	return result
 }
 
 type rankedMatch struct {

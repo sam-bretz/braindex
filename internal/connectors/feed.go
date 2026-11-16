@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"strings"
 
@@ -19,6 +21,21 @@ func FetchWeb(ctx context.Context, address string) (library.Source, error) {
 	if err != nil {
 		return library.Source{}, err
 	}
+	return webSource(data, final)
+}
+
+// FetchPublicWeb retrieves article text with public-only connections, including redirects.
+func FetchPublicWeb(ctx context.Context, address string) (library.Source, error) {
+	client := publicLinkClient()
+	defer client.CloseIdleConnections()
+	data, final, err := requestWithClient(ctx, client, http.MethodGet, address, nil, nil, maxPublicResponse)
+	if err != nil {
+		return library.Source{}, err
+	}
+	return webSource(data, final)
+}
+
+func webSource(data []byte, final *url.URL) (library.Source, error) {
 	title, body, err := ingest.HTMLText(bytes.NewReader(data))
 	if err != nil {
 		return library.Source{}, err
@@ -37,6 +54,7 @@ func FetchWeb(ctx context.Context, address string) (library.Source, error) {
 
 type feedLink struct {
 	Rel  string `xml:"rel,attr"`
+	Type string `xml:"type,attr"`
 	Href string `xml:"href,attr"`
 	Text string `xml:",chardata"`
 }
@@ -61,7 +79,8 @@ type entry struct {
 	Description string     `xml:"description"`
 	Summary     string     `xml:"summary"`
 	Enclosure   struct {
-		URL string `xml:"url,attr"`
+		URL  string `xml:"url,attr"`
+		Type string `xml:"type,attr"`
 	} `xml:"enclosure"`
 }
 
@@ -92,11 +111,57 @@ func FetchPodcast(ctx context.Context, address string) ([]library.Source, error)
 	return fetchFeed(ctx, address, true)
 }
 
+// FetchFollowFeed uses a public-only transport by default because a saved
+// feed may be refreshed repeatedly without a user inspecting its redirects.
+func FetchFollowFeed(ctx context.Context, address string, podcast, allowPrivate bool) ([]library.Source, error) {
+	if allowPrivate {
+		return fetchFeed(ctx, address, podcast)
+	}
+	parsed, err := webURL(address)
+	if err != nil {
+		return nil, err
+	}
+	client := publicLinkClient()
+	defer client.CloseIdleConnections()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	response, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("could not fetch the public feed from %s", parsed.Hostname())
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, fmt.Errorf("feed returned HTTP %d", response.StatusCode)
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, maxPublicResponse+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxPublicResponse {
+		return nil, fmt.Errorf("feed exceeds %d bytes", maxPublicResponse)
+	}
+	entries, err := decodeFeed(data)
+	if err != nil {
+		return nil, err
+	}
+	return feedSources(response.Request.URL, entries, podcast)
+}
+
 func fetchFeed(ctx context.Context, address string, podcast bool) ([]library.Source, error) {
 	data, base, err := get(ctx, address, nil, maxPublicResponse)
 	if err != nil {
 		return nil, err
 	}
+	entries, err := decodeFeed(data)
+	if err != nil {
+		return nil, err
+	}
+	return feedSources(base, entries, podcast)
+}
+
+func decodeFeed(data []byte) ([]entry, error) {
 	decoder := xml.NewDecoder(bytes.NewReader(data))
 	decoder.CharsetReader = charset.NewReaderLabel
 	var parsed feed
@@ -112,6 +177,10 @@ func fetchFeed(ctx context.Context, address string, podcast bool) ([]library.Sou
 	default:
 		return nil, fmt.Errorf("expected an RSS or Atom feed")
 	}
+	return entries, nil
+}
+
+func feedSources(base *url.URL, entries []entry, podcast bool) ([]library.Source, error) {
 	sources := make([]library.Source, 0, len(entries))
 	for _, item := range entries {
 		source, err := feedSource(base, item, podcast)
@@ -136,7 +205,8 @@ func feedSource(base *url.URL, item entry, podcast bool) (library.Source, error)
 			enclosure = address
 		}
 	}
-	address := first(article, enclosure, link(base, item.Enclosure.URL))
+	media := first(enclosure, link(base, item.Enclosure.URL))
+	address := first(article, media)
 	key := first(item.GUID, item.ID, address)
 	if key == "" {
 		return library.Source{}, nil
@@ -151,6 +221,7 @@ func feedSource(base *url.URL, item entry, podcast bool) (library.Source, error)
 		Date: first(item.Published, item.PubDate, item.Updated), Status: "unavailable",
 	}
 	if podcast {
+		source.AudioURL = media
 		return source, nil
 	}
 	content := first(item.Encoded, item.Content, item.Description, item.Summary)

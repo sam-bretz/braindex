@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">Braindex</title>
+  <rect width="64" height="64" rx="14" fill="#101321"/>
+  <path
+    fill="#F7F1E6"
+    fill-rule="evenodd"
+    d="M17 14h18c7 0 11 4 11 9 0 4-2 7-5 8 5 1 8 4 8 9 0 6-5 10-12 10H17a2 2 0 0 1-2-2V16a2 2 0 0 1 2-2Zm6 7v7h11c3 0 4-1 4-3.5S37 21 34 21H23Zm0 14v8h13c3 0 5-1.5 5-4s-2-4-5-4H23Z"
+  />
+  <rect x="25" y="37" width="11" height="4" rx="2" fill="#72E7AD"/>
+</svg>
